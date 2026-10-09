@@ -28,7 +28,8 @@ from scripts.render_run import render_html
 HERE = Path(__file__).resolve().parent
 FAULTS = ["DATE_TRAP", "SAVE_BROKEN", "BUTTON_RENAME", "DUPLICATE_VENDOR"]
 RESULT_FILES = [("Frozen scenarios S1-S5", "evals/RESULTS.md"), ("New tasks S6, S7, S10", "evals/RESULTS_PHASE7.md"),
-                ("S6 again after a handbook-only fix", "evals/RESULTS_PHASE7_S6_AFTER_HANDBOOK_FIX.md")]
+                ("S6 again after a handbook-only fix", "evals/RESULTS_PHASE7_S6_AFTER_HANDBOOK_FIX.md"),
+                ("S3 re-run (replaces the run killed by a file lock)", "evals/RESULTS_S3_RERUN_OF_ARTIFACT.md")]
 
 
 class StartRun(BaseModel):
