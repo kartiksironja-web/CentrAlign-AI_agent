@@ -13,8 +13,11 @@ writes [RESULTS.md](RESULTS.md) (generated, never edited by hand) and the raw re
 4. A **ground-truth check** of the final database, written by hand in the scenario (not derived from the run, not the auditor).
 5. One record of metrics, also stored inside the run's own `runs/<id>/run.json` under `eval`.
 
-Scenarios S1-S5 exist today (S3 runs in both audit modes, S5 as approve and deny). S6-S10 (revision update, vendor onboarding,
-prompt injection, existing bill, mark paid) are added in Phase 7 using only data files.
+`scenarios.yaml` holds S1-S5 (S3 runs in both audit modes, S5 as approve and deny), S6 (revised invoice), S7 (vendor onboarding)
+and S10 (mark a bill paid). S6, S7 and S10 were written as data before the agent was frozen but first run after it, on unchanged
+code; their results are in `RESULTS_PHASE7.md`, with two further labelled batches (`RESULTS_PHASE7_S6_AFTER_HANDBOOK_FIX.md` and
+`RESULTS_S3_RERUN_OF_ARTIFACT.md`). **Not built:** S8 (prompt injection), S9 (bill already exists, needs a seed variant) and S11
+(session expiry).
 
 ## The two questions
 
