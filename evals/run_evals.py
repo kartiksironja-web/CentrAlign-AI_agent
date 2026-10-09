@@ -173,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--scenarios", default="", help="comma separated ids (default: all)")
     parser.add_argument("--budget-usd", type=float, default=15.0, help="stop starting runs after this much model spend")
-    parser.add_argument("--max-steps", type=int, default=40)
+    parser.add_argument("--max-steps", type=int, default=60)
     parser.add_argument("--max-seconds", type=float, default=600.0)
     parser.add_argument("--max-cost", type=float, default=1.0, help="per-run model spend limit in USD")
     parser.add_argument("--headed", action="store_true", help="show the browser")

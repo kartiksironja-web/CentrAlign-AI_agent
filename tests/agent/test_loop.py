@@ -106,7 +106,7 @@ def test_the_run_log_contains_everything_needed_to_explain_the_run(run_loop, tmp
     log = json.loads((tmp_path / "runs" / result.run_id / "run.json").read_text(encoding="utf-8"))
     assert {"config", "request", "contract", "sop_ids", "plans", "steps", "self_checks", "assertions", "audit_attempts",
             "interactions", "gate_log", "notes", "outcome", "metrics", "changes", "report", "llm_calls"} <= set(log)
-    assert log["config"]["model"] == "fake/scripted" and log["config"]["audit_mode"] == "enforce" and log["config"]["max_steps"] == 40
+    assert log["config"]["model"] == "fake/scripted" and log["config"]["audit_mode"] == "enforce" and log["config"]["max_steps"] == 60
     assert log["sop_ids"] == ["vendor_invoice_entry"] and log["plans"][0]["version"] == 1
     step = log["steps"][4]
     assert step["tool"] == "http_request" and step["reason"] == "because" and step["args"]["url"] == "/erp/api/bills"
@@ -258,6 +258,19 @@ def test_open_questions_block_everything_but_asking_the_requester(run_loop):
     assert "1 human answer(s) came from a SCRIPTED human" in result.report
 
 
+def test_an_identical_write_sent_twice_is_flagged_in_the_loop(run_loop):
+    script = prep("vendor_invoice_entry") + [
+        call("http_request", **GOOD_BILL),
+        call("http_request", **GOOD_BILL),     # exactly the same write again (the ERP will refuse the duplicate)
+        call("finish", status="blocked", summary="stop for the test"),
+    ]
+    result, _, _ = run_loop(script)
+    first, second = result.state.steps[0], result.state.steps[1]
+    assert not any("exactly this POST" in m for m in first.detectors)
+    assert any("exactly this POST /erp/api/bills" in m for m in second.detectors) and "retry 1 of 2" in second.detectors[0]
+    assert "body_digest" in second.gate[0] and second.gate[0]["body_digest"] == first.gate[0]["body_digest"] != ""
+
+
 def test_when_nobody_can_answer_the_open_questions_the_agent_can_still_hand_over(run_loop):
     """Seen in a real run with no one at the keyboard: 'ask first' stayed in force, so finish was refused too."""
     script = prep("vendor_invoice_entry", ambiguities=["Which Acme is meant?"]) + [
@@ -290,6 +303,8 @@ def test_an_over_limit_bill_is_blocked_approved_by_a_human_and_then_verified(run
     assert texts[2].startswith("HTTP 201")
     assert result.outcome == "verified_done" and result.metrics["gate_blocks"] == 1 and result.metrics["human_interactions"] == 1
     assert comp.query("SELECT amount FROM erp_bills WHERE invoice_no = 'INV-3107'") == [{"amount": 80000.0}]
+    # only the write the gate let through is recorded, taken from the gate's own log
+    assert [(w["step"], w["method"], w["path"], w["action"]) for w in result.state.writes_made] == [(3, "POST", "/erp/api/bills", "create_bill")]
 
 
 def test_a_denied_approval_means_no_write_and_a_hand_over(run_loop):
@@ -305,6 +320,7 @@ def test_a_denied_approval_means_no_write_and_a_hand_over(run_loop):
     assert result.outcome == "needs_human" and len(comp.query("SELECT * FROM erp_bills")) == 2
     assert "nothing was added, changed or removed" in result.report and "approval request(s) were not approved" in result.report
     assert "no audit was run" in result.report
+    assert result.state.writes_made == []  # blocked and denied writes are not "writes you have sent"
 
 
 def test_asking_for_approval_when_nothing_is_blocked_does_not_conjure_one(run_loop):

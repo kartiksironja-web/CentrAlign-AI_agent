@@ -31,7 +31,7 @@ records:
     table: portal_invoices
     description: One row per published invoice document
     fields:
-      invoice_no: invoice number, for example INV-2041
+      invoice_no: invoice number, for example INV-0000
       vendor_id: id of the issuing vendor
       invoice_date: date on the invoice, stored as YYYY-MM-DD
       amount: amount due in INR

@@ -19,7 +19,7 @@ Rules
 
 Where the truth is (use these as the independent sources when you check your work)
 
-- The revised document prints its own number and the number it revises on lines such as `Invoice No: INV-2033-R1` and `Revision of: INV-2033.`, and the new due date on a line such as `Due Date: 07/09/2026`. When a check reads the document, its path is `portal_files/<revised invoice number>.pdf`.
+- The revised document prints its own number after `Invoice No:`, the number it revises on a line that starts with `Revision of:`, and the new due date after `Due Date:` (written DD/MM/YYYY). Always read the values from the document itself. When a check reads the document, its path is `portal_files/` followed by the revised invoice number and `.pdf`.
 - The bill to check is in the ERP table `erp_bills`, found by the ORIGINAL invoice number.
 
 Done means

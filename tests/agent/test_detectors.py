@@ -36,6 +36,12 @@ def test_noop_fires_for_a_click_that_changed_nothing():
     assert classes(found) == ["noop"] and found[0].message.startswith("[DETECTOR] noop:")
 
 
+def test_noop_points_to_the_api_as_the_way_around_a_dead_control():
+    """Seen in a real run: the agent clicked a dead button three times and never tried the API the rules allow."""
+    message = Detectors().inspect("browser_click", {"ref": 7}, ok(False, page()))[0].message
+    assert "Do not keep clicking it" in message and "API" in message
+
+
 def test_noop_does_not_fire_for_other_tools_blocked_clicks_or_changed_pages():
     d = Detectors()
     assert d.inspect("browser_type", {"ref": 1, "text": "x"}, ok(False, page())) == []
@@ -137,6 +143,19 @@ def test_noop_stays_cumulative_so_a_broken_button_retried_between_other_steps_is
         found = d.inspect("browser_click", {"ref": 9}, ok(False, page()))
         d.inspect("browser_snapshot", {}, ok(None, page()))  # a different, successful step in between
     assert classes(found) == ["noop"] and found[0].exhausted and d.exhausted() == ["noop"]
+
+
+def test_sending_exactly_the_same_write_again_is_a_repeat_but_a_different_body_is_not():
+    """Seen in real runs: after a write stored a different value, the agent re-sent the identical correction four times."""
+    d = Detectors()
+    edit = ("POST", "/erp/bills/3/edit", "a1b2c3")
+    assert d.inspect_writes([edit]) == []
+    assert d.inspect_writes([("POST", "/erp/bills/3/edit", "ffffff")]) == []        # a different body: a real change of approach
+    again = d.inspect_writes([edit])
+    assert classes(again) == ["repeat"] and "retry 1 of 2" in again[0].message and "different notation" in again[0].message
+    assert classes(d.inspect_writes([edit])) == ["repeat"]
+    third = d.inspect_writes([edit])
+    assert third[0].exhausted and d.exhausted() == ["repeat"]
 
 
 def test_one_result_can_trigger_several_classes():

@@ -394,6 +394,17 @@ def test_once_checked_and_declared_the_state_says_to_finish_but_not_after_a_fail
     assert "NEXT STEP" not in text and "REJECTED your last completion claim" in text
 
 
+def test_writes_the_system_recorded_are_listed_so_the_agent_cannot_mistake_its_own_work_for_old_work():
+    """Seen in a real run: after an approved write the agent decided the record 'already existed' and claimed no work was needed."""
+    s = state_with([step(1)])
+    assert "# Writes you have sent" not in render_state(s, "b")
+    s.writes_made.append({"step": 3, "method": "POST", "path": "/erp/bills/new", "action": "create_bill", "fields": {"amount": "5"}})
+    text = render_state(s, "b")
+    assert "# Writes you have sent in this run (recorded by the system, not by you)" in text
+    assert "- step 3: POST /erp/bills/new (create_bill) {'amount': '5'}" in text and "YOUR writes" in text
+    assert text.index("# Writes you have sent") < text.index("# Budget")
+
+
 def test_a_failed_self_check_and_the_audit_feedback_stay_visible():
     s = state_with([step(1)])
     s.self_checks.append({"step": 1, "passed": False, "detail": "d"})

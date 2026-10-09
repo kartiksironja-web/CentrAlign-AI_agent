@@ -28,6 +28,7 @@ How it can fail: it can only judge what a connector describes. A write to an end
 mapped to an action but whose policy fields the manifest forgot to extract is not limited by
 those rules; the policy tests assert that every rule fires in at least one scenario.
 """
+import hashlib
 import json
 import posixpath
 import re
@@ -202,6 +203,13 @@ def _norm(value) -> str:
         return str(value).strip()
 
 
+def _digest(body: str | bytes | None) -> str:
+    """A short fingerprint of a request body, so the log can show that two writes were identical without keeping the bodies."""
+    if not body:
+        return ""
+    return hashlib.sha1(body.encode() if isinstance(body, str) else body).hexdigest()[:10]
+
+
 def default_fetch(url: str) -> tuple[int, str]:
     response = httpx.get(url, timeout=5.0, follow_redirects=False)
     return response.status_code, response.text
@@ -233,7 +241,7 @@ class Gate:
         self.log.append({
             "method": request.method.upper(), "url": request.url, "effect": decision.effect,
             "rule_id": decision.rule_id, "reason": decision.reason, "action": decision.action,
-            "fields": decision.fields, "note": note,
+            "fields": decision.fields, "note": note, "body_digest": _digest(request.body),
         })
         return decision
 

@@ -47,6 +47,11 @@ def test_console_human_shows_the_question_and_the_gates_description_and_reads_th
     assert "Agent says: may I?" in shown and "What the system would actually do: X" in shown and "approve / deny" in shown
 
 
+def test_asking_for_help_with_the_approval_kind_is_pointed_to_clarification():
+    result = ask(toolbox(ScriptedHuman({})), "approval", "the button does not work, help")
+    assert result.error and "use kind=clarification" in result.text
+
+
 def test_a_closed_keyboard_means_no_human_not_a_crash(monkeypatch):
     """Seen in a real run with input closed: EOFError became a tool error and the agent retried it three times."""
     def closed(*args, **kwargs):

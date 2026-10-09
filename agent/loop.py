@@ -5,7 +5,7 @@ Purpose: `Agent.run(request)` prepares (contract, handbook selection, plan), the
 the step" until the work is finished, handed over, or a budget runs out. When the model
 claims completion, an independent audit decides whether that is true.
 The LLM proposes, code disposes. The model decides what to do next. This loop (code) decides:
-  * budgets: 40 steps, 600 s, a money cap; when one is used up the run ends, whatever the model thinks;
+  * budgets: 60 steps, 600 s, a money cap; when one is used up the run ends, whatever the model thinks;
   * one tool call per step, with a reason; extra calls are ignored, missing reasons rejected;
   * that nothing but a question to the requester is allowed while the contract has open
     questions, and nothing but asking a human / finishing once a retry budget is used up;
@@ -22,6 +22,7 @@ import copy
 import time
 from dataclasses import dataclass
 from typing import Callable, Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -45,7 +46,7 @@ ALWAYS_ALLOWED_WHEN_FORCED = ("ask_human", "finish", "note", "self_check", "upda
 
 @dataclass
 class RunConfig:
-    max_steps: int = 40
+    max_steps: int = 60
     max_seconds: float = 600.0
     max_cost_usd: float | None = 1.0
     max_audit_rounds: int = 2  # feedback rounds; the next failure escalates to a human
@@ -268,6 +269,10 @@ class Agent:
             result = self.toolbox.call(call.name, args)
             detections = self.detectors.inspect(call.name, args, result)
 
+        writes = [e for e in self.gate.log[mark:] if e["effect"] == "allow" and e["method"] not in ("GET", "HEAD", "OPTIONS")]
+        if kind == "tool":
+            detections += self.detectors.inspect_writes([(e["method"], urlsplit(e["url"]).path, e.get("body_digest", "")) for e in writes])
+
         text = result.text
         for d in detections:
             text += "\n" + d.message
@@ -281,6 +286,9 @@ class Agent:
         if call.name == "ask_human" and kind == "tool" and not result.error and not result.human_unavailable \
                 and args.get("kind") == "clarification":
             state.needs_clarification = False
+        for entry in writes:
+            state.writes_made.append({"step": n, "method": entry["method"], "path": urlsplit(entry["url"]).path,
+                                      "action": entry.get("action") or "no named action", "fields": entry.get("fields") or {}})
         if extra_calls:
             text += f"\n[SYSTEM] You made {extra_calls + 1} tool calls in one step; only the first was run. One tool per step."
         return StepRecord(

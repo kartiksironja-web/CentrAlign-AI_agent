@@ -74,6 +74,7 @@ class RunState:
     refusals: int = 0
     audit_failures: int = 0
     audit_feedback: str | None = None  # what the audit told the agent when it last rejected a completion claim
+    writes_made: list[dict] = field(default_factory=list)  # writes the gate let through, from the gate's own log
     first_claim: dict | None = None
     finish: dict | None = None
     outcome: str | None = None
@@ -135,6 +136,11 @@ def render_state(state: RunState, budget_line: str) -> str:
         parts.append(f"# Plan (version {state.plan.version})\n{marks}")
 
     parts.append(f"# Your notes\n{state.notes.render()}")
+    if state.writes_made:
+        sent = "\n".join(f"- step {w['step']}: {w['method']} {w['path']} ({w['action']}) {w['fields']}" for w in state.writes_made)
+        parts.append("# Writes you have sent in this run (recorded by the system, not by you)\n" + sent +
+                     "\nThe system let these through; check that they took effect. If you later find these records, "
+                     "they are the result of YOUR writes, not proof that the work was already there before you started.")
     verification = _verification(state)
     if verification:
         parts.append(f"# Verification so far\n{verification}")

@@ -393,7 +393,8 @@ class Toolbox:
         pending = self.gate.approvals.pending()
         if not pending:
             return ToolResult("NOTHING IS WAITING FOR APPROVAL. Only a request that was blocked with "
-                              "'approval required' can be approved; make that request first.",
+                              "'approval required' can be approved; make that request first. To ask the requester "
+                              "anything else (a question, or help because something does not work), use kind=clarification.",
                               "ask_human: nothing pending", error=True)
         lines, approved_count = [], 0
         for item in pending:

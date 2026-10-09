@@ -64,6 +64,7 @@ class Detectors:
         self.budget = budget
         self.counts = {klass: 0 for klass in CLASSES}
         self._recent: list[str] = []
+        self._writes: set[tuple[str, str, str]] = set()
 
     def exhausted(self) -> list[str]:
         """Classes whose retries are used up."""
@@ -76,6 +77,19 @@ class Detectors:
             return Detection(klass, f"[DETECTOR] {klass}: {what} The retry budget for this problem "
                                     f"({self.budget}) is used up. You must now ask_human or finish with status blocked.", True)
         return Detection(klass, f"[DETECTOR] {klass}: {what} (retry {n} of {self.budget})", False)
+
+    def inspect_writes(self, writes: list[tuple[str, str, str]]) -> list[Detection]:
+        """`writes` are (method, path, body digest) of the writes the gate let through in one step. Sending exactly
+        the same write twice is almost always a futile retry (the system stored something else) or an accidental
+        duplicate, so it counts as a `repeat`."""
+        found = []
+        for key in writes:
+            if key in self._writes:
+                found.append(self._hit("repeat", f"you already sent exactly this {key[0]} {key[1]} earlier. Sending it again "
+                                                 "will not give a different result. Change what you send (for example enter "
+                                                 "the value in a different notation), use the system's API, or ask the human."))
+            self._writes.add(key)
+        return found
 
     def inspect(self, tool: str, arguments: dict, result) -> list[Detection]:
         found = []
@@ -91,7 +105,9 @@ class Detectors:
                                                  "check its arguments or use another way."))
         if tool == "browser_click" and result.page_changed is False and not result.blocked and not result.error:
             found.append(self._hit("noop", "the page did not change after your click. The control may be broken or "
-                                           "disabled; look at the page again or try another way to do the same thing."))
+                                           "disabled. Do not keep clicking it: if a second look at the page shows nothing "
+                                           "wrong with what you entered, treat the web interface as not working and do "
+                                           "the same action through the system's API (the company rules allow this)."))
         if result.page is not None:
             reason = unexpected_reason(result.page)
             if reason:

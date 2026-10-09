@@ -64,7 +64,7 @@ def test_batch_metadata(batch_result):
     batch, records, _ = batch_result
     assert batch["batch_id"] == "eval-test" and batch["model"] == "fake/scripted" and batch["repeats"] == 1
     assert batch["scenarios"] == ["S1", "S2", "S3", "S3-advisory", "S5-approve", "S5-deny"]
-    assert "40 steps, 600 s and $1.0 per run" in batch["limits"] and batch["total_cost_usd"] > 0
+    assert "60 steps, 600 s and $1.0 per run" in batch["limits"] and batch["total_cost_usd"] > 0
 
 
 def test_a_correct_run_meets_expectations_and_is_checked_against_the_independent_truth(batch_result):
