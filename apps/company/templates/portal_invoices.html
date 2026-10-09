@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Invoices{% endblock %}
+{% block content %}
+<h1>Invoices</h1>
+<table>
+  <thead><tr><th>Invoice no.</th><th>Invoice date</th><th>Vendor</th></tr></thead>
+  <tbody>
+  {% for i in invoices %}
+    <tr>
+      <td><a href="/portal/invoices/{{ i.invoice_no }}">{{ i.invoice_no }}</a></td>
+      <td>{{ i.invoice_date|dmy }}</td>
+      <td>{{ i.vendor_name }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="3">No invoices found.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Vendors{% endblock %}
+{% block content %}
+<h1>Vendors</h1>
+<table>
+  <thead><tr><th>Vendor</th><th>City</th><th>Invoices</th></tr></thead>
+  <tbody>
+  {% for v in vendors %}
+    <tr>
+      <td>{{ v.name }}</td>
+      <td>{{ v.city }}</td>
+      <td><a href="/portal/invoices?vendor_id={{ v.id }}">View invoices</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

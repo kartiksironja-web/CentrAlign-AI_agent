@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Vendors{% endblock %}
+{% block content %}
+<h1>Vendors</h1>
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th>City</th><th>GST no.</th><th>Email</th><th>Payment terms (days)</th></tr></thead>
+  <tbody>
+  {% for v in vendors %}
+    <tr>
+      <td>{{ v.id }}</td><td>{{ v.name }}</td><td>{{ v.city }}</td>
+      <td>{{ v.gst_no }}</td><td>{{ v.email }}</td><td>{{ v.payment_terms_days }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

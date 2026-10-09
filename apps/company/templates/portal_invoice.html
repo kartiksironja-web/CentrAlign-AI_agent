@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Invoice {{ invoice.invoice_no }}{% endblock %}
+{% block content %}
+<h1>Invoice {{ invoice.invoice_no }}</h1>
+<table>
+  <tr><th>Invoice number</th><td>{{ invoice.invoice_no }}</td></tr>
+  <tr><th>Invoice date</th><td>{{ invoice.invoice_date|dmy }}</td></tr>
+  <tr><th>Vendor</th><td>{{ invoice.vendor_name }}</td></tr>
+</table>
+<p><a href="/portal/files/{{ invoice.invoice_no }}.pdf">Download PDF</a></p>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}New vendor{% endblock %}
+{% block content %}
+<h1>New vendor</h1>
+<form method="post" action="/erp/vendors/new">
+  <label for="name">Vendor name</label>
+  <input type="text" id="name" name="name" value="{{ values.get('name', '') }}">
+  <label for="city">City</label>
+  <input type="text" id="city" name="city" value="{{ values.get('city', '') }}">
+  <label for="gst_no">GST no.</label>
+  <input type="text" id="gst_no" name="gst_no" value="{{ values.get('gst_no', '') }}">
+  <label for="email">Email</label>
+  <input type="text" id="email" name="email" value="{{ values.get('email', '') }}">
+  <label for="payment_terms_days">Payment terms (days)</label>
+  <input type="number" id="payment_terms_days" name="payment_terms_days" value="{{ values.get('payment_terms_days', '') }}">
+  <br>
+  <button type="submit" id="save-vendor">Save Vendor</button>
+</form>
+{% endblock %}

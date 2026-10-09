@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Bills{% endblock %}
+{% block content %}
+<h1>Bills</h1>
+<table>
+  <thead><tr><th>ID</th><th>Vendor</th><th>Invoice no.</th><th>Amount</th><th>Due date</th><th>Status</th><th>Actions</th></tr></thead>
+  <tbody>
+  {% for b in bills %}
+    <tr>
+      <td>{{ b.id }}</td>
+      <td>{{ b.vendor_name }} ({{ b.vendor_city }})</td>
+      <td>{{ b.invoice_no }}</td>
+      <td>{{ b.amount|inr }}</td>
+      <td>{{ b.due_date|dmy }}</td>
+      <td>{{ b.status }}</td>
+      <td>
+        <a href="/erp/bills/{{ b.id }}/edit">Edit</a>
+        {% if b.status == "Open" %}
+        <form method="post" action="/erp/bills/{{ b.id }}/mark_paid" style="display:inline">
+          <button type="submit" id="mark-paid-{{ b.id }}" style="margin:0">Mark paid</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7">No bills yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,91 @@
+# Connector: the internal ERP. Read by the agent (description, capabilities, records) and by
+# the policy gate (base_url, actions). `actions` is for the gate only: it says which raw
+# requests are which named action, how to read the fields policy.yaml needs, and what makes
+# two requests "the same action" for approvals (approval_key).
+#
+# Field expressions look like  form.amount|json.amount  : the first source that has the
+# field wins. Sources: form (url-encoded body), json (JSON body), path (from {name} in the
+# path), query (URL query string).
+id: erp
+name: Internal ERP
+base_url: http://127.0.0.1:8000
+description: >
+  The company's internal system of record for vendors and bills. It has a web interface (forms
+  and lists) and a JSON API that can do the same things as the forms. Each bill belongs to a
+  vendor and has an invoice number, an amount, a due date and a status (Open or Paid).
+capabilities:
+  ui:
+    - "/erp/vendors  lists vendors; /erp/vendors/new  form to add a vendor"
+    - "/erp/bills  lists bills, with an Edit link and a Mark paid button per Open bill"
+    - "/erp/bills/new  form to add a bill (vendor, invoice number, amount, due date)"
+    - "/erp/bills/<id>/edit  form to change a bill's amount and due date"
+    - "The forms take dates as DD/MM/YYYY and lists show dates as DD/MM/YYYY"
+  api:
+    - "GET /erp/api/vendors ; POST /erp/api/vendors  {name, city, gst_no, email, payment_terms_days}"
+    - "GET /erp/api/bills (optional ?vendor_id= &invoice_no=) ; GET /erp/api/bills/<id>"
+    - "POST /erp/api/bills  {vendor_id, invoice_no, amount, due_date}"
+    - "PUT /erp/api/bills/<id>  any of {amount, due_date, status}; status can only change Open -> Paid"
+    - "API dates are YYYY-MM-DD; errors come back as JSON with a 'detail' message"
+records:
+  - db: erp
+    table: erp_vendors
+    description: One row per vendor in the ERP
+    fields:
+      id: vendor id
+      name: vendor name
+      city: city
+      gst_no: tax registration number
+      email: contact email
+      payment_terms_days: days allowed for payment
+  - db: erp
+    table: erp_bills
+    description: One row per bill entered in the ERP
+    fields:
+      id: bill id
+      vendor_id: id of the vendor (an erp_vendors id)
+      invoice_no: the vendor's invoice number
+      amount: bill amount in INR
+      due_date: payment due date, stored as YYYY-MM-DD
+      status: Open or Paid
+      created_via: how the row was created (set by the system, not by the user)
+actions:
+  - name: create_bill
+    match:
+      - {method: POST, path: /erp/bills/new}
+      - {method: POST, path: /erp/api/bills}
+    extract:
+      vendor_id: "form.vendor_id|json.vendor_id"
+      invoice_no: "form.invoice_no|json.invoice_no"
+      amount: "form.amount|json.amount"
+    approval_key: [vendor_id, invoice_no, amount]
+
+  - name: update_bill
+    match:
+      - {method: POST, path: "/erp/bills/{id}/edit"}
+      - {method: PUT, path: "/erp/api/bills/{id}", requires_any: [json.amount, json.due_date]}
+    extract:
+      bill_id: "path.id"
+      amount: "form.amount|json.amount"
+      due_date: "form.due_date|json.due_date"
+    approval_key: [bill_id, amount, due_date]
+
+  - name: mark_paid
+    match:
+      - {method: POST, path: "/erp/bills/{id}/mark_paid"}
+      - {method: PUT, path: "/erp/api/bills/{id}", requires_any: [json.status]}
+    extract:
+      bill_id: "path.id"
+    # The request itself carries no amount, so ask the ERP what the bill is for.
+    lookup:
+      url: "/erp/api/bills/{path.id}"
+      extract: {amount: "json.amount"}
+    approval_key: [bill_id, amount]
+
+  - name: create_vendor
+    match:
+      - {method: POST, path: /erp/vendors/new}
+      - {method: POST, path: /erp/api/vendors}
+    extract:
+      name: "form.name|json.name"
+      payment_terms_days: "form.payment_terms_days|json.payment_terms_days"
+    approval_key: [name, payment_terms_days]

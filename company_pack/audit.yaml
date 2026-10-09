@@ -1,0 +1,20 @@
+# What the auditor is allowed to look at. This is company knowledge, so it is DATA here
+# and not code in auditor/. The auditor opens every database read-only.
+#
+# base: data = the run's data folder (company.db and the portal PDFs); repo = the repo root.
+# A database label (erp, portal) is how assertions name a database. Both labels point at
+# the same SQLite file in this sandbox, but each lists only its own tables, so an assertion
+# cannot read a table through the wrong label.
+databases:
+  erp:
+    {base: data, file: company.db, tables: [erp_vendors, erp_bills]}
+  portal:
+    {base: data, file: company.db, tables: [portal_vendors, portal_invoices]}
+
+# Folders an assertion may read documents from, named by their first path segment,
+# e.g. "inputs/new_vendor_form_globex.pdf" or "portal_files/INV-2041.pdf".
+file_roots:
+  inputs:
+    {base: repo, path: inputs}
+  portal_files:
+    {base: data, path: portal_files}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}New bill{% endblock %}
+{% block content %}
+<h1>New bill</h1>
+{# SAVE_BROKEN: the form cannot submit and the button is type=button, so clicking does nothing. #}
+<form method="post" action="/erp/bills/new" id="bill-form"{% if faults.has("SAVE_BROKEN") %} onsubmit="return false;"{% endif %}>
+  <label for="vendor_id">Vendor</label>
+  <select id="vendor_id" name="vendor_id">
+    <option value="">-- select vendor --</option>
+    {% for v in vendors %}
+    <option value="{{ v.id }}"{% if values.get('vendor_id') == v.id|string %} selected{% endif %}>{{ v.name }} ({{ v.city }})</option>
+    {% endfor %}
+  </select>
+  <label for="invoice_no">Invoice number</label>
+  <input type="text" id="invoice_no" name="invoice_no" value="{{ values.get('invoice_no', '') }}">
+  <label for="amount">Amount (INR)</label>
+  <input type="number" step="0.01" id="amount" name="amount" value="{{ values.get('amount', '') }}">
+  <label for="due_date">Due date{% if not faults.has("DATE_TRAP") %}<span class="hint">DD/MM/YYYY</span>{% endif %}</label>
+  <input type="text" id="due_date" name="due_date" value="{{ values.get('due_date', '') }}">
+  <br>
+  {% set label = "Submit Entry" if faults.has("BUTTON_RENAME") else "Save Bill" %}
+  {% set btn_id = "submit-entry" if faults.has("BUTTON_RENAME") else "save-bill" %}
+  <button type="{{ 'button' if faults.has('SAVE_BROKEN') else 'submit' }}" id="{{ btn_id }}">{{ label }}</button>
+</form>
+{% endblock %}

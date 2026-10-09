@@ -1,0 +1,23 @@
+# Code-enforced permissions. The policy gate (agent/gate.py) reads this file; nothing here
+# is advice to the model. A request that breaks a rule never reaches the company systems.
+#
+# default_host_policy: deny  ->  a request to any host that is not a connector's base_url is refused.
+#
+# Two kinds of rule (effects: deny | require_approval):
+#   match rules   {id, match: {method?, path_glob?}, effect: deny}
+#                 apply to EVERY request, GET included (so off-limits pages cannot even be read)
+#   action rules  {id, action, when?: {field, op, value}, effect}
+#                 apply to a write that a connector maps to that action; `field` comes from the
+#                 request body/path or from the connector's lookup. `require_approval` blocks the
+#                 request until a human approves that exact action (see approval_key in the connector).
+# Write requests that no connector maps to an action are denied.
+default_host_policy: deny
+rules:
+  - {id: bill_over_limit,   action: create_bill,   when: {field: amount, op: ">", value: 50000}, effect: require_approval}
+  # Editing a bill could otherwise raise an amount past the limit without any approval.
+  - {id: update_over_limit, action: update_bill,   when: {field: amount, op: ">", value: 50000}, effect: require_approval}
+  # The "mark paid" request carries no amount; the connector looks the bill's amount up.
+  - {id: paid_over_limit,   action: mark_paid,     when: {field: amount, op: ">", value: 50000}, effect: require_approval}
+  - {id: long_terms,        action: create_vendor, when: {field: payment_terms_days, op: ">", value: 60}, effect: require_approval}
+  - {id: no_deletes,        match: {method: DELETE},        effect: deny, message: "deleting records is never allowed"}
+  - {id: admin_off_limits,  match: {path_glob: "/admin/*"}, effect: deny, message: "this path is off-limits"}

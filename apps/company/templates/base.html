@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}{% endblock %} - Nimbus</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; color: #1d2433; }
+    header { background: #1d2433; color: #fff; padding: 12px 24px; }
+    header a { color: #cfe0ff; margin-right: 16px; text-decoration: none; }
+    header strong { margin-right: 24px; }
+    main { padding: 24px; max-width: 900px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+    th, td { border: 1px solid #d5d9e0; padding: 6px 10px; text-align: left; }
+    th { background: #f1f3f7; }
+    label { display: block; margin-top: 12px; font-weight: 600; }
+    input, select { padding: 6px; min-width: 260px; }
+    button { margin-top: 16px; padding: 8px 16px; }
+    .hint { color: #5b6577; margin-left: 8px; font-weight: 400; }
+    .banner { padding: 10px 14px; margin-bottom: 16px; border-radius: 4px; }
+    .success { background: #d9f5e1; color: #14532d; }
+    .error { background: #fde2e2; color: #7f1d1d; }
+  </style>
+</head>
+<body>
+  <header>
+    {% if section == "portal" %}
+      <strong>Vendor Invoice Portal</strong>
+      <a href="/portal/vendors">Vendors</a>
+      <a href="/portal/invoices">All invoices</a>
+    {% elif section == "erp" %}
+      <strong>Internal ERP</strong>
+      <a href="/erp/vendors">Vendors</a>
+      <a href="/erp/vendors/new">New vendor</a>
+      <a href="/erp/bills">Bills</a>
+      <a href="/erp/bills/new">New bill</a>
+    {% else %}
+      <strong>Nimbus Retail</strong>
+    {% endif %}
+  </header>
+  <main>
+    {% if flash %}<div class="banner success" role="status">{{ flash }}</div>{% endif %}
+    {% if error %}<div class="banner error" role="alert">{{ error }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

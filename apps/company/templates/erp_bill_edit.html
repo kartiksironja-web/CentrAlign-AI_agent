@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Edit bill {{ bill.id }}{% endblock %}
+{% block content %}
+<h1>Edit bill {{ bill.id }}</h1>
+<table>
+  <tr><th>Vendor</th><td>{{ vendor.name }} ({{ vendor.city }})</td></tr>
+  <tr><th>Invoice number</th><td>{{ bill.invoice_no }}</td></tr>
+  <tr><th>Status</th><td>{{ bill.status }}</td></tr>
+</table>
+<form method="post" action="/erp/bills/{{ bill.id }}/edit">
+  <label for="amount">Amount (INR)</label>
+  <input type="number" step="0.01" id="amount" name="amount" value="{{ values.get('amount', '') }}">
+  <label for="due_date">Due date{% if not faults.has("DATE_TRAP") %}<span class="hint">DD/MM/YYYY</span>{% endif %}</label>
+  <input type="text" id="due_date" name="due_date" value="{{ values.get('due_date', '') }}">
+  <br>
+  <button type="submit" id="save-changes">Save Changes</button>
+</form>
+{% endblock %}

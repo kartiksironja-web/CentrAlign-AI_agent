@@ -1,0 +1,41 @@
+# Connector: the vendor invoice portal. Read by the agent (description, capabilities, records)
+# and by the policy gate (base_url, actions). It describes WHAT the system is, not how to
+# use it step by step; the "how" belongs to the handbook (sops/).
+id: portal
+name: Vendor invoice portal
+base_url: http://127.0.0.1:8000
+description: >
+  Website where our vendors publish the invoices they send us. We can only read it: it has no
+  forms and nothing here can be created or changed by us. Each invoice has a web page with its
+  number, date and vendor, plus a downloadable PDF. The invoice amount and due date appear only
+  inside the PDF document.
+capabilities:
+  ui:
+    - "/portal/vendors  lists the vendors"
+    - "/portal/invoices?vendor_id=<id>  lists a vendor's invoices (no particular order); without vendor_id lists all"
+    - "/portal/invoices/<invoice number>  invoice page with a 'Download PDF' link"
+    - "Dates on pages and in PDFs are written DD/MM/YYYY"
+  api: []
+  documents_for_assertions:
+    - "The audit can read the invoice PDFs as files named portal_files/<invoice number>.pdf (use path: portal_files/INV-xxxx.pdf in a from: file expected value)"
+    - "Files given to you by the requester are under inputs/, for example inputs/<file name>"
+records:
+  - db: portal
+    table: portal_vendors
+    description: Vendors known to the portal
+    fields:
+      id: vendor id (same ids as in the internal ERP)
+      name: vendor name
+      city: vendor city
+  - db: portal
+    table: portal_invoices
+    description: One row per published invoice document
+    fields:
+      invoice_no: invoice number, for example INV-2041
+      vendor_id: id of the issuing vendor
+      invoice_date: date on the invoice, stored as YYYY-MM-DD
+      amount: amount due in INR
+      due_date: payment due date, stored as YYYY-MM-DD
+      revised_of: invoice number this document replaces, empty if none
+# A read-only system has no write actions. Every write request to it is denied by the gate.
+actions: []
