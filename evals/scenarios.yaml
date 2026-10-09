@@ -15,8 +15,9 @@
 #   min_gate_blocks         the policy gate must have stopped something at least this often
 #   no_write_before_human   no write may reach the systems before the first human answer
 #
-# Scenarios S6-S10 (revision update, vendor onboarding, injection, existing bill, mark paid)
-# are added in Phase 7 using only this file, company_pack/, inputs/ and seed data.
+# S6 (revised invoice), S7 (vendor onboarding) and S10 (mark a bill paid) were written as data before
+# the agent was frozen and first run after it, on unchanged code. S8 (injection) and S9 (existing bill)
+# are not built.
 
 defaults:
   seed_variant: default

@@ -100,6 +100,44 @@ def test_the_live_log_is_none_before_the_first_write_and_the_dict_after(tmp_path
     assert read_run_json(tmp_path) is None  # a torn read is skipped, the next poll will see the whole file
 
 
+# ---- reading the company's tables while the runner resets them ----------------------------------------
+
+def test_reading_the_tables_survives_a_reset_in_progress(tmp_path, monkeypatch):
+    """Found in a fresh-clone run: a read between DROP TABLE and CREATE TABLE answered the page with HTTP 500."""
+    import sqlite3
+
+    from apps.console import runs
+
+    (tmp_path / "company.db").write_bytes(b"")  # a database with no tables yet, as during a reset
+    started = time.time()
+    assert runs.read_tables(tmp_path) == {"vendors": [], "bills": [], "invoices": []}
+    assert time.time() - started < 5
+
+    con = sqlite3.connect(tmp_path / "company.db")
+    con.executescript("""CREATE TABLE erp_vendors (id INTEGER, name TEXT, city TEXT, payment_terms_days INTEGER);
+        CREATE TABLE erp_bills (id INTEGER, vendor_id INTEGER, invoice_no TEXT, amount REAL, due_date TEXT, status TEXT, created_via TEXT);
+        CREATE TABLE portal_invoices (invoice_no TEXT, vendor_id INTEGER, invoice_date TEXT, amount REAL, due_date TEXT, revised_of TEXT);
+        INSERT INTO erp_vendors VALUES (1, 'V', 'C', 30);""")
+    con.commit()
+    con.close()
+    assert runs.read_tables(tmp_path)["vendors"] == [{"id": 1, "name": "V", "city": "C", "payment_terms_days": 30}]
+
+
+def test_a_read_that_fails_once_is_retried(tmp_path, monkeypatch):
+    from apps.console import runs
+
+    calls = []
+
+    def flaky(data_dir):
+        calls.append(1)
+        if len(calls) < 3:
+            raise runs.sqlite3.OperationalError("no such table: erp_vendors")
+        return {"vendors": [1], "bills": [], "invoices": []}
+
+    monkeypatch.setattr(runs, "_read_tables_once", flaky)
+    assert runs.read_tables(tmp_path)["vendors"] == [1] and len(calls) == 3
+
+
 # ---- the markdown of the results files ----------------------------------------------------------------
 
 def test_markdown_tables_headings_and_escaping():

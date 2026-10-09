@@ -122,11 +122,27 @@ def read_run_json(runs_dir: Path) -> dict | None:
             return None  # not complete yet: the next poll will see it
     return None
 
+EMPTY_TABLES = {"vendors": [], "bills": [], "invoices": []}
+
+
 def read_tables(data_dir: Path) -> dict:
-    """The company's tables, read-only, for the live panel."""
+    """The company's tables, read-only, for the live panel.
+
+    While a run starts, the runner resets the company data, which drops and recreates every table. A read at that
+    instant fails with "no such table" (or "database is locked"); that used to answer the page with HTTP 500 and made a
+    test fail about once in eight runs. So retry briefly, and show empty tables if the reset is still in progress."""
+    for _ in range(6):
+        try:
+            return _read_tables_once(data_dir)
+        except sqlite3.OperationalError:
+            time.sleep(0.15)
+    return {key: [] for key in EMPTY_TABLES}
+
+
+def _read_tables_once(data_dir: Path) -> dict:
     path = data_dir / "company.db"
     if not path.exists():
-        return {"vendors": [], "bills": [], "invoices": []}
+        return {key: [] for key in EMPTY_TABLES}
     con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     try:

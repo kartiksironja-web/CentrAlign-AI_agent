@@ -18,9 +18,9 @@ Model used for every result in this repo: `mistral/ministral-14b-latest` through
 | 7 | New tasks by data only (T2 revision update, T3 vendor onboarding, T4 mark paid), `prove_generalization` | Done: scenarios S6, S7, S10 run on the same frozen code. S8 (injection) and S9 (existing bill) not built |
 | 8 | Run viewer, recording flags, demo script | Done (`scripts/render_run.py`, `--headed --slow`, `docs/DEMO_SCRIPT.md`) |
 | 9 | Document audit | Done: `docs/AUDIT_REPORT.md` |
-| extra | Local web console (`apps/console/`) for running and filming the agent | Done after the freeze, outside the evaluated code (decisions #98-#99); 12 tests, driven end to end through a browser with a real run |
+| extra | Local web console (`apps/console/`) for running and filming the agent | Done after the freeze, outside the evaluated code (decisions #98-#99); 15 tests, driven end to end through a browser with a real run |
 
-## What exists (details: `docs/DECISIONS_LOG.md`, 97 entries)
+## What exists (details: `docs/DECISIONS_LOG.md`, 102 entries)
 
 - **Mock company** (`apps/company/`): vendor portal (amount and due date only inside invoice PDFs), ERP with web forms and a JSON API, token-protected admin, faults `DATE_TRAP`, `SAVE_BROKEN`, `BUTTON_RENAME`, `DUPLICATE_VENDOR` (off by default), deterministic seed. `SESSION_EXPIRY` (P2) is not built.
 - **Auditor** (`auditor/`, plain Python, no model, no company words): own read-only SQLite connection, schema-checked SQL, before/after row-hash snapshots, six assertion kinds, a validator that forces coverage of what the handbook requires and independent sources for those values, declaration-time checks (expected values must resolve now, undeclared changes are refused with the exact fix), `no_other_changes`, a feedback ladder.
@@ -31,7 +31,7 @@ Model used for every result in this repo: `mistral/ministral-14b-latest` through
 - **Evals** (`evals/`): scenarios S1-S5, S6, S7, S10; fresh data copy and app process per run; an independent ground-truth check (not the auditor); metrics including "auditor false pass"; `RESULTS.md` generated from stored records.
 - **Proof of generalization** (`scripts/prove_generalization.py`): hashes of `agent/` and `auditor/` at the freeze.
 - **Web console** (`apps/console/`): `python -m apps.console.main`, then http://127.0.0.1:8500. Runs the real agent in a thread, shows phases, plan, every step with its reason, the gate, the auditor's checks beside the agent's own claim, and the company's tables live; a person answers approvals and questions in the browser; also shows the generated results and the freeze proof.
-- **Tests**: 758 (about 2 to 4 minutes); the setup commands and the full suite were also run on a clean clone (Windows 11, Python 3.11.9).
+- **Tests**: 761 (about 2 to 4 minutes); the setup commands and the full suite were also run on a clean clone (Windows 11, Python 3.11.9).
 
 ## How the real model changed the code
 
@@ -47,7 +47,7 @@ The architecture was written and tested with a scripted fake model; the first re
 
 - **Example values in the handbook (about 08:27 to 09:40 on 2026-10-09).** I briefly wrote real values (an invoice number, an amount, a date) as examples in the handbook; the model copied them into a different vendor's bill, and the agent could pass by copying the handbook instead of reading the document. Every run from that period is excluded from the evidence (including the first "success" sample, which I deleted). The text now describes line labels and tables only, and `tests/test_handbook_has_no_answers.py` fails if any seed value appears in the pack. The evaluation was run afterwards on clean text.
 - **Development runs overlap scenario S1.** 14 single development runs and 5 pilot batches (26 runs, so about 40 runs in all) used the same tasks as S1-S5, with fixes between them (decisions #77-#97). Evaluation numbers are therefore not independent of that tuning, S3 in particular (decision #92). The new tasks (S6, S7, S10) were not run before the freeze.
-- **T2-T4 handbook files and their scenarios were written before the freeze** but never run before it; they were in the handbook catalogue during every S1-S5 run (which also tests that extra rules do not confuse the agent). So `prove_generalization` shows the agent code unchanged and, as data changes since the freeze, only the S6 handbook fix (`company_pack/sops/invoice_revision_update.md`): the honest claim is "the same frozen code ran four tasks", not "data was added after the freeze".
+- **T2-T4 handbook files and their scenarios were written before the freeze** but never run before it; they were in the handbook catalogue during every S1-S5 run (which also tests that extra rules do not confuse the agent). So `prove_generalization` shows the agent code unchanged and, as data changes since the freeze, only the S6 handbook fix (`company_pack/sops/invoice_revision_update.md`) and a corrected out-of-date comment in `evals/scenarios.yaml` (no scenario changed): the honest claim is "the same frozen code ran four tasks", not "data was added after the freeze".
 
 ## Known gaps (honest list)
 

@@ -58,7 +58,7 @@ Open **Proof of generalization**: it says `agent/` and `auditor/` are byte-ident
 | Reliability | Detectors (error, timeout, no-op, wrong page, repeat) with retry budgets, then a forced hand-over; step, time and money budgets. | `agent/detectors.py`, `agent/loop.py` |
 | Verification | Independent read-only auditor with expected values from a source, "nothing else changed", and a false-pass metric. | `auditor/engine.py`, `auditor/validate.py`, `evals/ground_truth.py` |
 | Generalization | `agent/` and `auditor/` contain no task words (a test enforces it); company knowledge is data; a script proves the code did not change. | `tests/test_no_task_strings.py`, `scripts/prove_generalization.py` |
-| Engineering quality | About 760 tests, setup verified on a clean clone, decisions logged with alternatives (101 entries), my own mistakes written down. | `docs/DECISIONS_LOG.md`, `docs/PROGRESS.md` |
+| Engineering quality | About 760 tests, setup verified on a clean clone, decisions logged with alternatives (102 entries), my own mistakes written down. | `docs/DECISIONS_LOG.md`, `docs/PROGRESS.md` |
 | Product thinking | The report is built by code from observed facts and says what needs attention; the console shows the same facts live. | `agent/report.py`, `apps/console/` |
 | Technical understanding | See the study list below. | |
 

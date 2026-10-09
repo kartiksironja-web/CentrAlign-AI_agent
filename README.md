@@ -84,7 +84,7 @@ python -m agent.run --task "..." --faults DATE_TRAP     # inject a silent fault
 python -m evals.run_evals --repeats 3     # writes evals/RESULTS.md from real runs
 pytest -q                                 # deterministic tests, no LLM needed
 python -m scripts.prove_generalization    # are agent/ and auditor/ byte-identical to the freeze? which data files changed?
-python -m scripts.render_run runs/samples/20261009-084036-c44b/run.json   # static HTML timeline of a real run
+python -m scripts.render_run runs/samples/20261009-102834-ea71/run.json   # static HTML timeline of a real run
 ```
 
 Verified on a clean clone (Windows 11, 2026-10-09): venv, `pip install -r requirements.txt`, `playwright install chromium`, the seed, the app answering on its port, `agent.run --help` and `pytest -q` (732 passed). The agent and evaluation commands need a model key; they were run for real with the key in `.env`.
@@ -97,7 +97,7 @@ Verified on a clean clone (Windows 11, 2026-10-09): venv, `pip install -r requir
 python -m apps.console.main      # then open http://127.0.0.1:8500
 ```
 
-Pick a scenario (S1 to S10), press **Run the agent**, and watch: the phases, what it understood and planned, every step with the reason the model gave, the policy gate's decisions, the company's tables with new and changed rows marked, and **the independent auditor** (the agent's own claim, labelled "NOT verified", beside the audit's verdict from code, with a PASS/FAIL line per check). When the policy gate needs a human, or the agent has a question, a window asks *you*. The page also shows the generated evaluation results and the proof that `agent/` and `auditor/` did not change after the freeze. It binds to 127.0.0.1 only and runs one agent at a time; it was added after the freeze and does not change the agent (decision #98).
+Pick one of the 10 scenarios, press **Run the agent**, and watch: the phases, what it understood and planned, every step with the reason the model gave, the policy gate's decisions, the company's tables with new and changed rows marked, and **the independent auditor** (the agent's own claim, labelled "NOT verified", beside the audit's verdict from code, with a PASS/FAIL line per check). When the policy gate needs a human, or the agent has a question, a window asks *you*. The page also shows the generated evaluation results and the proof that `agent/` and `auditor/` did not change after the freeze. It binds to 127.0.0.1 only and runs one agent at a time; it was added after the freeze and does not change the agent (decision #98).
 
 ## 5. The mock company and injected faults
 
@@ -121,7 +121,7 @@ One small FastAPI app serves a **vendor portal** (invoice list and PDFs) and an 
 | Create a vendor from a form file | "Onboard the new vendor in inputs/new_vendor_form_globex.pdf." |
 | Mark a bill paid | "Mark Acme's INV-2039 as paid." |
 
-`python -m scripts.prove_generalization` shows that `agent/` and `auditor/` are byte-identical to the freeze (`agent-frozen` tag and `evals/frozen_manifest.json`) after the later tasks were added, and lists the data files that changed since then (on 9 October: only `company_pack/sops/invoice_revision_update.md`, the handbook fix made after the first S6 batch; the T2 to T4 handbook files and S6/S7/S10 were written before the freeze but never run before it). **Honest caveat:** I designed those tasks knowing the framework, in the same fictional company, so they are easier than a stranger's tasks. See `docs/HOW_TO_ADD_A_TASK.md` for adding a new one.
+`python -m scripts.prove_generalization` shows that `agent/` and `auditor/` are byte-identical to the freeze (`agent-frozen` tag and `evals/frozen_manifest.json`) after the later tasks were added, and lists the data files that changed since then (on 9 October: two files, `company_pack/sops/invoice_revision_update.md`, the handbook fix made after the first S6 batch, and `evals/scenarios.yaml`, where only an out-of-date comment was corrected and no scenario changed; the T2 to T4 handbook files and S6/S7/S10 were written before the freeze but never run before it). **Honest caveat:** I designed those tasks knowing the framework, in the same fictional company, so they are easier than a stranger's tasks. See `docs/HOW_TO_ADD_A_TASK.md` for adding a new one.
 
 ## 7. Results
 
