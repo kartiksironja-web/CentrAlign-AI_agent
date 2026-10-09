@@ -5,7 +5,7 @@ Purpose: `Agent.run(request)` prepares (contract, handbook selection, plan), the
 the step" until the work is finished, handed over, or a budget runs out. When the model
 claims completion, an independent audit decides whether that is true.
 The LLM proposes, code disposes. The model decides what to do next. This loop (code) decides:
-  * budgets: 40 steps, 300 s, a money cap; when one is used up the run ends, whatever the model thinks;
+  * budgets: 40 steps, 600 s, a money cap; when one is used up the run ends, whatever the model thinks;
   * one tool call per step, with a reason; extra calls are ignored, missing reasons rejected;
   * that nothing but a question to the requester is allowed while the contract has open
     questions, and nothing but asking a human / finishing once a retry budget is used up;
@@ -46,7 +46,7 @@ ALWAYS_ALLOWED_WHEN_FORCED = ("ask_human", "finish", "note", "self_check", "upda
 @dataclass
 class RunConfig:
     max_steps: int = 40
-    max_seconds: float = 300.0
+    max_seconds: float = 600.0
     max_cost_usd: float | None = 1.0
     max_audit_rounds: int = 2  # feedback rounds; the next failure escalates to a human
     audit_mode: Literal["enforce", "advisory"] = "enforce"

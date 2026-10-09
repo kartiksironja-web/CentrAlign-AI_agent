@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reset", action="store_true", help="reset the mock company to its seeded state first")
     parser.add_argument("--audit-mode", choices=["enforce", "advisory"], default="enforce")
     parser.add_argument("--max-steps", type=int, default=40)
-    parser.add_argument("--max-seconds", type=float, default=300.0)
+    parser.add_argument("--max-seconds", type=float, default=600.0)
     parser.add_argument("--max-cost", type=float, default=1.0, help="stop when the model spend reaches this many USD")
     args = parser.parse_args(argv)
 
