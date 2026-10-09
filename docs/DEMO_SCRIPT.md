@@ -1,96 +1,73 @@
-# Demo script
+# Demo script (about 5 minutes)
 
-> **DRAFT.** It describes what to run and what to point at. It contains NO results: nothing has been run against a real
-> model yet. Every `<<FILL after real runs>>` must be replaced with what the real runs actually showed (Phase 9 checks this).
-> If a real run behaves differently from what is written here, the script changes, not the run.
+Everything below was done for real on 2026-10-09; numbers come from `evals/RESULTS.md` and the other generated results files. Say only what the screen shows. If a live run goes differently from this script, the script is wrong, not the run: say what happened.
 
 ## Before you record (once)
 
-1. `C:\dev\verifyops\.env` has your API key; `AGENT_MODEL` is the verified model id. `playwright install chromium` was done.
-2. Terminal 1: `python -m apps.company.seed --reset` then `python -m apps.company.main` (leave it running).
-3. Terminal 2 is for the agent. Window layout: terminal 2 on the left, the browser the agent opens on the right.
-4. Always start a demo with `--reset` so the world is the seeded one (`--reset` is the runner resetting the mock company; the agent never can).
-5. For recording use `--headed --slow 300` so viewers can follow the browser.
-6. After each run: `python -m scripts.render_run runs/<run id>/run.json` and open the `timeline.html` it writes (the run id is printed in the report).
+1. `.env` has `MISTRAL_API_KEY` and `AGENT_MODEL=mistral/ministral-14b-latest` (see `.env.example`). `playwright install chromium` was done.
+2. One terminal: `cd C:\dev\verifyops` then `.venv\Scripts\activate` then `python -m apps.console.main`. It starts the company app too (port 8000) and the console on **http://127.0.0.1:8500**. Open that address in a browser window.
+3. Window layout: the console on the left two thirds; the browser window the agent opens ("Show the browser window" is ticked) on the right. Slow motion 250 ms is a good speed for viewers.
+4. A run takes 3 to 5 minutes (the free plan spaces model calls out). Press Run, narrate the first minute, cut or speed up the middle in editing, and come back for the verdict. Do not pretend it is faster.
+5. Every run resets the company data first ("Reset the company data first" is ticked), so each demo starts from the same world.
 
-## The pitch (30 seconds)
+## 0:00 The pitch (30 seconds, on the Run page)
 
-Most agents end with "Done!" and that is the model's own opinion. VerifyOps is a new-hire AI employee: it reads the company
-handbook (rules, not click-paths), does the work through a real browser and a real API, and then an independent, non-LLM auditor
-checks the real system state before "done" is allowed. I also measure how often an agent claims success when the result is wrong.
-The model proposes; code disposes: code decides what is permitted (policy gate), whether the task succeeded (auditor), when to stop
-(budgets) and what is logged.
+Most agents end with "Done!", and that is the model's own opinion. VerifyOps is a new-hire AI employee. It reads the company handbook (rules, not click paths), does the work through a real browser and a real API, and then an independent auditor, plain code with no model in it, checks the real database before "done" is allowed. The model proposes; code disposes: code decides what is permitted (the policy gate), whether the task succeeded (the auditor), when to stop (budgets) and what gets logged. I also measure how often an agent claims success when the result is wrong.
 
-## Demo 1: happy path (S1): "it really does the work"
+## 0:30 Demo 1: the happy path (S1), "it really does the work"
 
-```
-python -m agent.run --task "Enter Acme Supplies' latest invoice into the ERP and tell me when it's done." --reset --headed --slow 300
-```
+Click **S1**, then **Run the agent**. Point at, in this order:
 
-Point at: it was not told any steps (the handbook has rules only: `company_pack/sops/vendor_invoice_entry.md`); the invoice list on the
-portal is unsorted and the amount and due date are only inside the PDF, so it has to read a document; the report at the end: the
-outcome line and the PASS lines come from the auditor (code), the agent's own summary sits in a section labelled NOT verified.
-What this run actually showed: <<FILL after real runs>>
+- the phase pills along the top (Understand, Handbook, Plan, Work, Self-check and assertions, Audit, Report);
+- **What it understood and planned**: a goal, the handbook section it chose (`vendor_invoice_entry`) and a checklist. It was not told any steps; the handbook has rules only;
+- **What it is doing, and why**: every step has a reason in the model's own words, and "What the system answered" shows what it saw. The invoice list on the portal is unsorted and the amount and due date are only inside the PDF, so it has to read a document;
+- the **Company systems (live)** table on the left: a green row appears when the bill is saved;
+- the **Policy gate** on the right: every read is allowed, and the one write is shown with its action name (`create_bill`);
+- **The independent auditor**: the agent's own claim on the left carries a yellow "NOT verified" label; the audit's verdict on the right comes from code that reads the database itself, with a PASS/FAIL line per check, the expected value from an independent source and the actual value in the system.
 
-## Demo 2: the silent date trap (S3): "why 'done' needs an auditor"
+What the real runs showed: S1 finished `verified_done` in 3 of 3 sweep runs (25, 34 and 29 steps, 2.5 to 3 minutes). One of them is walked through in `docs/AGENT_WALKTHROUGH.md`.
 
-```
-python -m agent.run --task "Enter Acme Supplies' latest invoice into the ERP and tell me when it's done." --reset --faults DATE_TRAP --headed --slow 300
-```
+## 2:00 Demo 2: a human at the policy gate (S5), "permissions are code"
 
-The ERP is made to read `03/11/2026` as 11 March but still shows a green "Bill saved". Point at the green banner, then at the bill list
-showing 11/03/2026. Then open the timeline: did the agent notice itself (a failed self-check), or did the audit reject its first claim
-(`FINISH REJECTED`, feedback round 1 shows only the field name, round 2 the values)?
-Then the same run with `--audit-mode advisory`: the audit result is recorded but not shown, so the agent's first claim is final.
-What the real runs showed (enforce, advisory, how often): <<FILL after real runs: copy from evals/RESULTS.md, do not paraphrase>>
+Click **S5-approve** and Run. The bill is over 50,000 rupees. When the save is attempted the gate blocks it at the network layer and a **window opens asking you to approve**. Point at: the question shows what the *system* recorded about the blocked request next to what the agent says. Click **Deny** the first time (nothing is written; outcome "NEEDS A HUMAN"; the audit confirms zero rows were added), then run it again and click **Approve** (the bill is saved and verified).
 
-## Demo 3: a broken button (S4): "reliability"
+What the real runs showed: with a scripted "deny" the agent handed over `needs_human` and wrote nothing in 3 of 3 runs; with a scripted "approve" the bill was saved with the right data in 2 of 3 runs, and in the third the agent chose an older invoice and the audit could not tell (see below).
 
-```
-python -m agent.run --task "Enter Acme Supplies' latest invoice into the ERP and tell me when it's done." --reset --faults SAVE_BROKEN,BUTTON_RENAME --headed --slow 300
-```
+## 3:15 Demo 3: when something breaks (S4), "reliability"
 
-Point at: the Save button does nothing and is renamed; the `noop` detector fires (a `[DETECTOR]` line in the next observation); what the agent
-did next. What the real runs showed: <<FILL after real runs>>
+Click **S4** (this ticks `SAVE_BROKEN` and `BUTTON_RENAME`) and Run. The Save button does nothing and has been renamed. Point at the **detector** chips on the steps (no-op detected), what the agent did next (it switched to the system's API), and that the bill still ends up verified. Say plainly: it worked in 2 of 3 runs; in the third it handed over.
 
-## Demo 4: approval (S5): "human gates and the permission layer"
+## 3:45 Show the numbers and the honest limits (Evaluation results tab)
 
-```
-python -m agent.run --task "Enter Zenith Industrial Ltd's latest invoice into the ERP and tell me when it's done." --reset --headed --slow 300
-```
+Open **Evaluation results**: the per-scenario table is generated by code from stored runs. Read the columns "Auditor-verified success", "Ground truth OK" and **"Auditor false pass"**. Then say the three things a reviewer should hear from you:
 
-You are the human at the keyboard. The bill is over 50,000 rupees, so the policy gate blocks the save at the network layer. Point at: the
-approval question shows what the SYSTEM recorded about the blocked request next to what the agent says; answer "deny" once (nothing is
-written, outcome needs_human) and "approve" once (the bill is saved and verified).
+1. **The auditor has a blind spot, and I measure it.** It checks the saved record against the source the *agent* cites. In S5-approve one run chose an older invoice and its checks agreed with that choice; in the first S6 batch the agent changed nothing, cited the original document, and the audit passed. Only the harness's independent ground-truth check, which is not the auditor, saw it. Both runs are in `runs/samples/`.
+2. **It does not ask when it should.** In S2 (two similar vendors) the agent picked the right vendor in 3 of 3 runs but never asked the human first (0 of 3 meet the expectation).
+3. **Small model, small sample.** One 14B model on a free plan, three runs per scenario, scripted humans, and development runs that overlap the scenarios (listed in `docs/PROGRESS.md`).
 
-## Show the numbers
+## 4:30 Proof of generalization (Proof tab)
 
-Open `evals/RESULTS.md` (generated, never edited by hand): the per-scenario table, the enforce-versus-advisory table, and the
-"auditor false pass" column. Say plainly: three runs per scenario, one model, scripted humans, scenarios written by me.
-`<<FILL after real runs>>`
+Open **Proof of generalization**: it says `agent/` and `auditor/` are byte-identical to the freeze (tag `agent-frozen`). The new tasks (revise a bill, onboard a vendor, mark a bill paid) ran on that same code: mark-paid 3 of 3 and onboarding 2 of 3 verified. The revision update is the instructive one: in the first batch all three runs passed the audit but all three were false passes (nothing had changed); after a handbook-only fix (`evals/RESULTS_PHASE7_S6_AFTER_HANDBOOK_FIX.md`) the bill really was updated in 3 of 3 runs, but none passed the stricter audit within the step budget. Say the caveat: I designed those tasks knowing the framework.
 
-## Likely questions, with the file to open
+## Likely questions, with where to look
 
 | Criterion | Short honest answer | Open |
 |---|---|---|
-| Autonomy | Next actions come from the model each step from state (contract, rules, plan, notes, last steps); nothing tells it which buttons to press. | `agent/loop.py`, `agent/state.py`, `company_pack/sops/` |
-| Execution | Real Chromium and real HTTP against a mock company; writes are verified in the database. | `agent/browser.py`, `agent/toolbox.py` |
+| Autonomy | The next action comes from the model at each step from a compact state (contract, rules, plan, notes, last steps); nothing tells it which buttons to press. | `agent/loop.py`, `agent/state.py`, `company_pack/sops/` |
+| Execution | Real Chromium and real HTTP against a mock company; writes are checked in the database. | `agent/browser.py`, `agent/toolbox.py` |
 | Reliability | Detectors (error, timeout, no-op, wrong page, repeat) with retry budgets, then a forced hand-over; step, time and money budgets. | `agent/detectors.py`, `agent/loop.py` |
-| Verification | Independent auditor, read-only database access, expected values from a source system or document, "nothing else changed". | `auditor/engine.py`, `auditor/validate.py` |
-| Generalization | `agent/` and `auditor/` contain no task words (a test enforces it); company knowledge is data. | `tests/test_no_task_strings.py`, `company_pack/` (proof script comes in Phase 7) |
-| Engineering quality | Tests that fail when the code is broken (deliberate-break checks are recorded in `docs/PROGRESS.md`), decisions logged with alternatives. | `docs/DECISIONS_LOG.md` |
-| Product thinking | The report is built from observed facts and says what needs attention. | `agent/report.py` |
+| Verification | Independent read-only auditor with expected values from a source, "nothing else changed", and a false-pass metric. | `auditor/engine.py`, `auditor/validate.py`, `evals/ground_truth.py` |
+| Generalization | `agent/` and `auditor/` contain no task words (a test enforces it); company knowledge is data; a script proves the code did not change. | `tests/test_no_task_strings.py`, `scripts/prove_generalization.py` |
+| Engineering quality | About 760 tests, setup verified on a clean clone, decisions logged with alternatives (101 entries), my own mistakes written down. | `docs/DECISIONS_LOG.md`, `docs/PROGRESS.md` |
+| Product thinking | The report is built by code from observed facts and says what needs attention; the console shows the same facts live. | `agent/report.py`, `apps/console/` |
 | Technical understanding | See the study list below. | |
-
-Limits to volunteer: the agent writes its own assertions (the validator forces coverage of what the company rules require, no more);
-a redirect that follows a write is only detected after the fact; one model, three runs per scenario; humans are scripted in the evals.
 
 ## If something goes wrong live
 
-Open a recorded run instead: `python -m scripts.render_run runs/samples/<run id>/run.json` (<<FILL: keep one good sample and one failed sample
-in `runs/samples/` after the real runs>>). A failed run explained honestly through the timeline is a good demo too.
+- A run fails or the model is slow: that is a result. Open a recorded run instead: `python -m scripts.render_run runs/samples/<run>/run.json`, or open `timeline.html` in that folder. `runs/samples/README.md` says what each one shows.
+- "Company app: NOT running" at the top: start `python -m apps.company.main` in another terminal, or restart the console.
+- A model or quota error appears as a red banner with the provider's message; nothing is hidden.
 
 ## Study list (so you can explain every part)
 
-1. `agent/loop.py`: one step, `finish`, budgets. 2. `agent/gate.py`: the order of checks. 3. `auditor/engine.py` and `auditor/validate.py`.
-4. `agent/browser.py`: why 204, why the redirect guard. 5. `agent/state.py`: state, not transcript. 6. `evals/ground_truth.py`: why the check is independent.
+1. `agent/loop.py`: one step, `finish`, budgets. 2. `agent/gate.py`: the order of checks. 3. `auditor/engine.py` and `auditor/validate.py`. 4. `agent/browser.py`: why 204, why the redirect guard. 5. `agent/state.py`: state, not transcript. 6. `evals/ground_truth.py`: why the check is independent. 7. `apps/console/runs.py`: the web human and why the console takes turns with the agent over `run.json`.

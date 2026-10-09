@@ -1,0 +1,135 @@
+{
+  "batch": {
+    "batch_id": "eval-20261009-105123",
+    "started_at": "2026-10-09T10:51:23",
+    "finished_at": "2026-10-09T11:08:33",
+    "model": "mistral/ministral-14b-latest",
+    "temperature": null,
+    "repeats": 3,
+    "scenarios": [
+      "S6"
+    ],
+    "command": "C:\\dev\\verifyops\\evals\\run_evals.py --repeats 3 --scenarios S6 --out evals/RESULTS_PHASE7_S6_AFTER_HANDBOOK_FIX.md",
+    "limits": "60 steps, 600 s and $1.0 per run; $15.0 for the whole batch",
+    "total_cost_usd": 0.12234980000000001
+  },
+  "records": [
+    {
+      "batch": "eval-20261009-105123",
+      "repeat": 1,
+      "scenario": "S6",
+      "run_id": "20261009-105131-ff92",
+      "outcome": "blocked",
+      "model": "mistral/ministral-14b-latest",
+      "temperature": null,
+      "meets_expectations": false,
+      "unmet": [
+        "outcome 'blocked' is not one of ['verified_done']"
+      ],
+      "verified_success": false,
+      "ground_truth_ok": true,
+      "ground_truth_failures": [],
+      "auditor_false_pass": false,
+      "first_claim_made": true,
+      "first_claim_correct": false,
+      "false_completion": true,
+      "self_caught": false,
+      "auditor_caught": false,
+      "steps": 40,
+      "retries": 4,
+      "detectors": {
+        "tool_error": 0,
+        "timeout": 0,
+        "noop": 0,
+        "unexpected_page": 3,
+        "repeat": 0
+      },
+      "humans": 0,
+      "humans_scripted": 0,
+      "gate_blocks": 0,
+      "tokens_in": 276563,
+      "tokens_out": 5547,
+      "cost_usd": 0.03103192,
+      "wall_seconds": 213.5,
+      "assertion_versions": 3
+    },
+    {
+      "batch": "eval-20261009-105123",
+      "repeat": 2,
+      "scenario": "S6",
+      "run_id": "20261009-105507-bf7e",
+      "outcome": "budget_exhausted",
+      "model": "mistral/ministral-14b-latest",
+      "temperature": null,
+      "meets_expectations": false,
+      "unmet": [
+        "outcome 'budget_exhausted' is not one of ['verified_done']"
+      ],
+      "verified_success": false,
+      "ground_truth_ok": true,
+      "ground_truth_failures": [],
+      "auditor_false_pass": false,
+      "first_claim_made": false,
+      "first_claim_correct": null,
+      "false_completion": false,
+      "self_caught": false,
+      "auditor_caught": false,
+      "steps": 60,
+      "retries": 0,
+      "detectors": {
+        "tool_error": 0,
+        "timeout": 0,
+        "noop": 0,
+        "unexpected_page": 0,
+        "repeat": 0
+      },
+      "humans": 0,
+      "humans_scripted": 0,
+      "gate_blocks": 0,
+      "tokens_in": 412269,
+      "tokens_out": 16054,
+      "cost_usd": 0.04575932000000001,
+      "wall_seconds": 410.359000000004,
+      "assertion_versions": 0
+    },
+    {
+      "batch": "eval-20261009-105123",
+      "repeat": 3,
+      "scenario": "S6",
+      "run_id": "20261009-110159-d4ca",
+      "outcome": "budget_exhausted",
+      "model": "mistral/ministral-14b-latest",
+      "temperature": null,
+      "meets_expectations": false,
+      "unmet": [
+        "outcome 'budget_exhausted' is not one of ['verified_done']"
+      ],
+      "verified_success": false,
+      "ground_truth_ok": true,
+      "ground_truth_failures": [],
+      "auditor_false_pass": false,
+      "first_claim_made": true,
+      "first_claim_correct": false,
+      "false_completion": true,
+      "self_caught": false,
+      "auditor_caught": false,
+      "steps": 60,
+      "retries": 3,
+      "detectors": {
+        "tool_error": 0,
+        "timeout": 0,
+        "noop": 0,
+        "unexpected_page": 0,
+        "repeat": 1
+      },
+      "humans": 0,
+      "humans_scripted": 0,
+      "gate_blocks": 0,
+      "tokens_in": 429383,
+      "tokens_out": 14525,
+      "cost_usd": 0.04555855999999999,
+      "wall_seconds": 394.45300000000134,
+      "assertion_versions": 11
+    }
+  ]
+}

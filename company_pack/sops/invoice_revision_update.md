@@ -20,7 +20,9 @@ Rules
 Where the truth is (use these as the independent sources when you check your work)
 
 - The revised document prints its own number after `Invoice No:`, the number it revises on a line that starts with `Revision of:`, and the new due date after `Due Date:` (written DD/MM/YYYY). Always read the values from the document itself. When a check reads the document, its path is `portal_files/` followed by the revised invoice number and `.pdf`.
+- The ORIGINAL document (the one without the revision suffix) still shows the OLD due date. Never use it as the source of the new due date: only the REVISED document is the source.
 - The bill to check is in the ERP table `erp_bills`, found by the ORIGINAL invoice number.
+- Because the revised due date differs from the old one, the bill must have changed. Declare that one existing row of `erp_bills` changed (kind `rows_changed`, count 1) and that no row was added (kind `rows_added`, count 0), besides the field checks. If nothing changed, the work is not done.
 
 Done means
 
