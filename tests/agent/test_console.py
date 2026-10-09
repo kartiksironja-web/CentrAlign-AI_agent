@@ -212,6 +212,16 @@ def test_an_approval_is_answered_from_the_page(console):
     assert state["run"]["interactions"][0]["reply"] == "deny" and state["run"]["interactions"][0]["scripted"] is False
 
 
+def test_the_page_is_served_self_contained(console):
+    """The page must work offline (a demo machine may have no internet) and keep the elements the script in it relies on."""
+    page = console.get("/")
+    assert page.status_code == 200 and "VerifyOps" in page.text
+    for element_id in ("presets", "task", "go", "steps", "verdict", "gate", "modal", "t-bills", "pipe", "bar"):
+        assert f'id="{element_id}"' in page.text, element_id
+    import re
+    assert not re.search(r"""(src|href)=["']https?://""", page.text) and "url(http" not in page.text and "@import" not in page.text
+
+
 def test_results_and_proof_pages(console):
     assert isinstance(console.get("/api/results").json(), list)
     proof = console.get("/api/proof").json()
