@@ -107,6 +107,9 @@ def _verification(state: RunState) -> str:
                      f"audit checks them when you call finish. Declare again only if you must change them:\n{last['yaml']}")
     if state.audit_feedback:
         lines.append("- the independent audit REJECTED your last completion claim:\n" + state.audit_feedback)
+    elif state.assertion_versions and state.self_checks and state.self_checks[-1]["passed"]:
+        lines.append("- NEXT STEP: everything needed to finish is in place. Call `finish` now, unless you have found a "
+                     "real problem with the work itself. More browsing and re-reading will not change the audit.")
     return "\n".join(lines)
 
 

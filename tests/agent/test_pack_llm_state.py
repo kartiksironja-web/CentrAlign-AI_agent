@@ -380,6 +380,20 @@ def test_accepted_assertions_stay_visible_after_their_step_scrolled_out():
     assert text.index("# Verification so far") < text.index("# Budget")
 
 
+def test_once_checked_and_declared_the_state_says_to_finish_but_not_after_a_failed_check_or_rejection():
+    s = state_with([step(1)])
+    s.self_checks.append({"step": 1, "passed": True, "detail": "d"})
+    assert "NEXT STEP" not in render_state(s, "b")  # nothing declared yet
+    s.assertion_versions.append({"step": 2, "yaml": "assertions: []"})
+    assert "NEXT STEP: everything needed to finish is in place. Call `finish` now" in render_state(s, "b")
+    s.self_checks.append({"step": 3, "passed": False, "detail": "d"})
+    assert "NEXT STEP" not in render_state(s, "b")
+    s.self_checks.append({"step": 4, "passed": True, "detail": "d"})
+    s.audit_feedback = "check 'x' failed"
+    text = render_state(s, "b")
+    assert "NEXT STEP" not in text and "REJECTED your last completion claim" in text
+
+
 def test_a_failed_self_check_and_the_audit_feedback_stay_visible():
     s = state_with([step(1)])
     s.self_checks.append({"step": 1, "passed": False, "detail": "d"})
