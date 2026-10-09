@@ -59,7 +59,7 @@ A real run explained step by step is in `docs/AGENT_WALKTHROUGH.md`. Design deci
 
 ## 4. Setup and run
 
-**Requirements:** Python 3.11+, an API key for one LLM provider (a free plan is enough; see the notes in `.env.example`). Tested on **Windows 11 with Python 3.11.9**: on 2026-10-09 a fresh clone was installed with the commands below and its 732 tests passed. Not tested on macOS or Linux.
+**Requirements:** Python 3.11+, an API key for one LLM provider (a free plan is enough; see the notes in `.env.example`). Tested on **Windows 11 with Python 3.11.9**: on 2026-10-09 a fresh clone of the final code was installed with the commands below and its full test suite passed (761 tests). Not tested on macOS or Linux.
 
 ```bash
 python -m venv .venv
@@ -87,7 +87,7 @@ python -m scripts.prove_generalization    # are agent/ and auditor/ byte-identic
 python -m scripts.render_run runs/samples/20261009-102834-ea71/run.json   # static HTML timeline of a real run
 ```
 
-Verified on a clean clone (Windows 11, 2026-10-09): venv, `pip install -r requirements.txt`, `playwright install chromium`, the seed, the app answering on its port, `agent.run --help` and `pytest -q` (732 passed). The agent and evaluation commands need a model key; they were run for real with the key in `.env`.
+Verified on a clean clone (Windows 11, 2026-10-09): venv, `pip install -r requirements.txt`, `playwright install chromium`, the seed, the app answering on its port, `agent.run --help` and `pytest -q` (761 passed; an earlier fresh-clone run had caught a race in the console, since fixed, decision #102). The agent and evaluation commands need a model key; they were run for real with the key in `.env`.
 
 **Safety:** everything runs against a local mock company. No real credentials, no third-party systems. Mock logins only.
 
