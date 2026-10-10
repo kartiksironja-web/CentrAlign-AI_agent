@@ -33,6 +33,8 @@ def scripts():
     return {
         "S1": prep("vendor_invoice_entry") + t1_script(),
         "S2": prep("vendor_invoice_entry") + ask_pune + [
+            call("http_request", **GOOD_BILL),   # blocked by the gate: look-alike vendor, an earlier question does not count
+            call("ask_human", kind="clarification", question="You have two Acme vendors; which one?"),
             call("http_request", **GOOD_BILL), call("declare_assertions", yaml=assertions_yaml()),
             call("finish", status="done", summary="Entered for the Pune vendor.")],
         "S3": prep("vendor_invoice_entry") + date_trap_claim() + after_rejection(),
@@ -89,7 +91,8 @@ def test_in_advisory_mode_the_same_false_claim_is_final_and_the_wrong_world_is_d
 
 def test_a_clarification_before_any_write_is_measured(batch_result):
     r = batch_result[1]["S2"]
-    assert r["meets_expectations"] and r["humans"] == 1 and r["humans_scripted"] == 1 and r["ground_truth_ok"]
+    assert r["meets_expectations"] and r["humans"] == 2 and r["humans_scripted"] == 2 and r["ground_truth_ok"]
+    assert r["gate_blocks"] == 1  # the first write was stopped by the look-alike check, so no write came before an answer
 
 
 def test_approval_and_denial(batch_result):

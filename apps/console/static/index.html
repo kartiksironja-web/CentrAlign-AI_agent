@@ -464,9 +464,10 @@ function argSummary(x) {
     default: return "";
   }
 }
+const LABELS = { require_approval: "approval needed", require_clarification: "clarification needed" };
 function stepHtml(x) {
   const t = TOOLS[x.tool] || ["activity", x.tool, "#818cf8"], writes = (x.gate || []).filter((g) => g.method !== "GET"), chips = [];
-  writes.forEach((g) => chips.push(`<span class="chip ${g.effect === "allow" ? "good" : g.effect === "deny" ? "bad" : "warn"}">gate: ${esc(g.effect === "require_approval" ? "approval required" : g.effect)}${g.action ? " | " + esc(g.action) : ""}</span>`));
+  writes.forEach((g) => chips.push(`<span class="chip ${g.effect === "allow" ? "good" : g.effect === "deny" ? "bad" : "warn"}">gate: ${esc(LABELS[g.effect] || g.effect)}${g.action ? " | " + esc(g.action) : ""}</span>`));
   (x.detectors || []).forEach((d) => chips.push(`<span class="chip warn">${icon("alert")}${esc(d.replace(/^\[DETECTOR\]\s*/, "").split(":")[0])} detector</span>`));
   if (x.error) chips.push(`<span class="chip bad">error</span>`);
   const a = argSummary(x);
@@ -478,11 +479,11 @@ function stepHtml(x) {
 function renderGate(steps) {
   const all = steps.flatMap((x) => (x.gate || []).map((g) => [x.n, g]));
   const reads = all.filter(([, g]) => g.method === "GET" && g.effect === "allow").length, writes = all.filter(([, g]) => g.method !== "GET" && g.effect === "allow").length;
-  const appr = all.filter(([, g]) => g.effect === "require_approval").length, deny = all.filter(([, g]) => g.effect === "deny").length;
+  const appr = all.filter(([, g]) => g.effect === "require_approval" || g.effect === "require_clarification").length, deny = all.filter(([, g]) => g.effect === "deny").length;
   $("g-reads").textContent = reads; $("g-writes").textContent = writes; $("g-appr").textContent = appr; $("g-deny").textContent = deny;
   const rows = all.filter(([, g]) => g.method !== "GET" || g.effect !== "allow");
   if (!rows.length) { if (all.length) setHtml($("gate"), `<div class="hint">${reads} reads allowed so far; no write has reached the gate yet.</div>`); return; }
-  setHtml($("gate"), rows.map(([n, g]) => `<div class="gcard ${g.effect === "allow" ? "" : g.effect === "deny" ? "deny" : "approval"}"><div class="t"><span class="chip ${g.effect === "allow" ? "good" : g.effect === "deny" ? "bad" : "warn"}">${esc(g.effect === "require_approval" ? "approval needed" : g.effect)}</span>
+  setHtml($("gate"), rows.map(([n, g]) => `<div class="gcard ${g.effect === "allow" ? "" : g.effect === "deny" ? "deny" : "approval"}"><div class="t"><span class="chip ${g.effect === "allow" ? "good" : g.effect === "deny" ? "bad" : "warn"}">${esc(LABELS[g.effect] || g.effect)}</span>
     <span class="hint">step #${n}</span><code>${esc(g.method)} ${esc((g.url || "").replace(/^https?:\/\/[^/]+/, ""))}</code></div>
     <div class="hint" style="margin-top:4px">${esc(g.reason || "")}${g.rule_id ? " (rule " + esc(g.rule_id) + ")" : ""}${g.fields && Object.keys(g.fields).length ? "<br>" + esc(JSON.stringify(g.fields)) : ""}</div></div>`).join(""));
 }

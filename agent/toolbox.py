@@ -53,6 +53,7 @@ class ToolResult:
     page_changed: bool | None = None  # None: not a page action
     page: PageInfo | None = None
     human_unavailable: bool = False
+    detail: str = ""  # why a human could not answer, for the run log
 
 
 # ---- argument models (they also produce the JSON schemas the model sees) ----
@@ -376,18 +377,28 @@ class Toolbox:
     def _record(self, kind, question, reply, options, context) -> None:
         self.interactions.append(Interaction(kind, question, reply, self.human.scripted, options, context))
 
-    def _unavailable(self, lines: list[str]) -> ToolResult:
+    def _unavailable(self, lines: list[str], why: str = "") -> ToolResult:
         lines.append("HUMAN UNAVAILABLE: no answer can be given. You cannot continue past this point "
                      "without a human; finish with status needs_human and explain what is needed.")
-        return ToolResult("\n".join(lines), "ask_human: human unavailable", human_unavailable=True)
+        return ToolResult("\n".join(lines), "ask_human: human unavailable", human_unavailable=True, detail=why)
 
     def _ask_clarification(self, a: AskArgs) -> ToolResult:
+        # What the gate itself found (look-alike records), shown next to the model's own words, as for approvals.
+        waiting = self.gate.clarifications.pending()
+        context = [f"What the system found: {p.description}" for p in waiting]
         try:
-            reply = self.human.ask("clarification", a.question, a.options, [])
-        except NoHumanReply:
-            return self._unavailable([])
-        self._record("clarification", a.question, reply, a.options, [])
-        return ToolResult(f"HUMAN REPLY: {reply}", "ask_human: clarification answered")
+            reply = self.human.ask("clarification", a.question, a.options, context)
+        except NoHumanReply as e:
+            return self._unavailable([], str(e))
+        if not reply.strip():  # an empty reply is not an answer: it must not release anything
+            return ToolResult("EMPTY REPLY: the human gave no answer. Nothing was released. Ask again, or finish with "
+                              "status needs_human.", "ask_human: empty reply", error=True)
+        self.gate.clarifications.answer_pending()
+        self._record("clarification", a.question, reply, a.options, context)
+        text = f"HUMAN REPLY: {reply}"
+        if waiting:
+            text += "\nThe blocked write may now be repeated; write exactly what the human's answer says."
+        return ToolResult(text, "ask_human: clarification answered")
 
     def _ask_approval(self, a: AskArgs) -> ToolResult:
         pending = self.gate.approvals.pending()
@@ -401,8 +412,8 @@ class Toolbox:
             context = [f"What the system would actually do: {item.description}", f"Rule that stopped it: {item.rule_id}"]
             try:
                 reply = self.human.ask("approval", a.question, ["approve", "deny"], context)
-            except NoHumanReply:
-                return self._unavailable(lines)
+            except NoHumanReply as e:
+                return self._unavailable(lines, str(e))
             approved = is_approval(reply)
             self.gate.approvals.decide(item.key, approved)
             self._record("approval", a.question, reply, ["approve", "deny"], context)

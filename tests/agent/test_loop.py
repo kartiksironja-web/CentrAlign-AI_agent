@@ -271,14 +271,15 @@ def test_an_identical_write_sent_twice_is_flagged_in_the_loop(run_loop):
     assert "body_digest" in second.gate[0] and second.gate[0]["body_digest"] == first.gate[0]["body_digest"] != ""
 
 
-def test_when_nobody_can_answer_the_open_questions_the_agent_can_still_hand_over(run_loop):
-    """Seen in a real run with no one at the keyboard: 'ask first' stayed in force, so finish was refused too."""
+def test_when_nobody_can_answer_the_open_questions_the_run_ends_as_needs_human(run_loop):
+    """Seen in a real run with no one at the keyboard: 'ask first' stayed in force, so finish was refused too.
+    Now the loop itself ends the run, so it no longer depends on the model choosing to stop."""
     script = prep("vendor_invoice_entry", ambiguities=["Which Acme is meant?"]) + [
         call("ask_human", kind="clarification", question="Which Acme: Pune or Dubai?"),
-        call("finish", status="needs_human", summary="a human has to say which Acme"),
+        call("finish", status="needs_human", summary="never reached: code already ended the run"),
     ]
     result, _, _ = run_loop(script, human=ScriptedHuman({}))
-    assert [s.kind for s in result.state.steps] == ["tool", "control"]
+    assert [s.kind for s in result.state.steps] == ["tool"]
     assert "HUMAN UNAVAILABLE" in result.state.steps[0].result_text
     assert result.outcome == "needs_human" and "a human was needed but no answer was available" in result.report
 
@@ -330,14 +331,58 @@ def test_asking_for_approval_when_nothing_is_blocked_does_not_conjure_one(run_lo
     assert "NOTHING IS WAITING FOR APPROVAL" in result.state.steps[0].result_text and result.metrics["human_interactions"] == 0
 
 
-def test_a_missing_human_forces_a_hand_over(run_loop):
+def test_a_missing_scripted_reply_ends_the_run_as_needs_human_and_says_why(run_loop):
+    """No default answer is ever assumed: the scripted human has nothing left, so the run stops there, in code."""
     script = prep() + [call("ask_human", kind="clarification", question="anyone there?"),
-                       call("http_request", method="GET", url="/portal/vendors"),
-                       call("finish", status="needs_human", summary="nobody answered")]
-    result, _, _ = run_loop(script)  # a scripted human with no replies at all
-    assert "HUMAN UNAVAILABLE" in result.state.steps[0].result_text
-    assert result.state.steps[1].kind == "refused" and "No human can answer" in result.state.steps[1].result_text
-    assert result.outcome == "needs_human" and "a human was needed but no answer was available" in result.report
+                       call("http_request", method="GET", url="/portal/vendors"),     # never reached
+                       call("finish", status="done", summary="never reached")]
+    result, _, comp = run_loop(script)  # a scripted human with no replies at all
+    assert len(result.state.steps) == 1 and "HUMAN UNAVAILABLE" in result.state.steps[0].result_text
+    assert result.outcome == "needs_human"
+    assert "no scripted reply left for kind='clarification'" in result.state.detail  # logged with the reason
+    assert "no scripted reply left" in result.report and "a human was needed but no answer was available" in result.report
+    assert result.metrics["human_interactions"] == 0 and len(comp.query("SELECT * FROM erp_bills")) == 2
+
+
+def test_a_look_alike_vendor_blocks_the_write_until_the_requester_has_answered(run_loop):
+    """The S2 loophole: both Acme vendors were on screen and the agent wrote without asking. Now the gate stops it."""
+    script = prep("vendor_invoice_entry") + [
+        call("http_request", **GOOD_BILL),
+        call("ask_human", kind="clarification", question="Which Acme do you mean?"),
+        call("http_request", **GOOD_BILL),
+        call("finish", status="blocked", summary="stop for the test"),
+    ]
+    result, _, comp = run_loop(script, faults=["DUPLICATE_VENDOR"], human=ScriptedHuman({"clarification": ["The one in Pune"]}))
+    texts = [s.result_text for s in result.state.steps]
+    assert texts[0].startswith("BLOCKED: clarification required (rule similar_records). Use ask_human(kind=clarification).")
+    assert "Acme Supplies Pvt Ltd" in texts[0] and "Acme Supplies LLC" in texts[0]
+    assert texts[1].startswith("HUMAN REPLY: The one in Pune") and "may now be repeated" in texts[1]
+    assert texts[2].startswith("HTTP 201") and len(comp.query("SELECT * FROM erp_bills")) == 3
+    assert result.metrics["gate_blocks"] == 1 and result.metrics["human_interactions"] == 1
+
+
+def test_no_answer_to_the_look_alike_question_means_no_write(run_loop):
+    script = prep("vendor_invoice_entry") + [
+        call("http_request", **GOOD_BILL),
+        call("ask_human", kind="clarification", question="Which Acme do you mean?"),
+        call("http_request", **GOOD_BILL),                                    # never reached
+    ]
+    result, _, comp = run_loop(script, faults=["DUPLICATE_VENDOR"])          # nobody can answer
+    assert result.outcome == "needs_human" and len(result.state.steps) == 2
+    assert len(comp.query("SELECT * FROM erp_bills")) == 2                    # zero rows added
+    assert result.state.writes_made == []
+
+
+def test_a_question_asked_before_the_block_does_not_release_it(run_loop):
+    """Asking early is good, but the gate only counts an answer to what it found, so it asks again."""
+    script = prep("vendor_invoice_entry") + [
+        call("ask_human", kind="clarification", question="Anything unusual about this task?"),
+        call("http_request", **GOOD_BILL),
+        call("finish", status="blocked", summary="stop for the test"),
+    ]
+    result, _, comp = run_loop(script, faults=["DUPLICATE_VENDOR"], human=ScriptedHuman({"clarification": ["No"]}))
+    assert result.state.steps[1].result_text.startswith("BLOCKED: clarification required")
+    assert len(comp.query("SELECT * FROM erp_bills")) == 2
 
 
 # ---- detectors, budgets, protocol ----------------------------------------------------------------

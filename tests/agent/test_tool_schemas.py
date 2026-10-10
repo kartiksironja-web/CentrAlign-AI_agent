@@ -127,11 +127,12 @@ def test_a_form_may_be_a_list_of_pairs_or_a_dict_and_numbers_become_text(company
     seen = sent(monkeypatch)
     tb = company().toolbox()
     tb.call("http_request", {"method": "POST", "url": "/erp/bills/new", "form": [
-        {"name": "vendor_id", "value": 7}, {"name": "due_date", "value": "03/11/2026"}, {"name": "tag", "value": "a"}, {"name": "tag", "value": "b"}]})
+        {"name": "vendor_id", "value": 7}, {"name": "amount", "value": 100}, {"name": "due_date", "value": "03/11/2026"},
+        {"name": "tag", "value": "a"}, {"name": "tag", "value": "b"}]})  # the amount is there: the gate needs it to let a bill through
     assert seen["content_type"] == "application/x-www-form-urlencoded"
-    assert urllib.parse.parse_qs(seen["body"]) == {"vendor_id": ["7"], "due_date": ["03/11/2026"], "tag": ["a", "b"]}
-    tb.call("http_request", {"method": "POST", "url": "/erp/bills/new", "form": {"vendor_id": 7}})
-    assert seen["body"] == "vendor_id=7"
+    assert urllib.parse.parse_qs(seen["body"]) == {"vendor_id": ["7"], "amount": ["100"], "due_date": ["03/11/2026"], "tag": ["a", "b"]}
+    tb.call("http_request", {"method": "POST", "url": "/erp/bills/new", "form": {"vendor_id": 7, "amount": 100}})
+    assert seen["body"] == "vendor_id=7&amount=100"
 
 
 def test_empty_optional_values_mean_no_body(company, monkeypatch):

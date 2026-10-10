@@ -16,17 +16,24 @@ Order of checks:
      (`unreadable_request`).
   5. The action's fields are extracted (plus the connector's `lookup`, if a rule needs a
      field the request does not carry). Action rules are evaluated; deny beats
-     require_approval beats allow.
-  6. require_approval: the request is blocked and registered as pending. A human decision is
+     require_approval beats allow. A field a rule needs that is missing (unless the manifest lists
+     it as `optional_fields`) or unreadable counts as the rule applying: a human must approve,
+     and the reason is logged.
+  6. Look-alikes: if the action has an `entity`, the gate lists the candidate records itself and,
+     when another record has a similar name (agent/similar.py), blocks the write with
+     require_clarification until a human has answered a question asked AFTER the block.
+  7. require_approval: the request is blocked and registered as pending. A human decision is
      stored against an approval key built from the ACTION and its key fields (not the
      channel), so an approval for "this action" covers the browser form and the API alike.
      An approval is single-use: it is consumed when the request is let through.
-Fail closed: unreadable bodies, ambiguous duplicate fields, a non-numeric value where a rule
-needs a number, and a failed lookup all lead to deny, never to allow.
+Fail closed: unreadable bodies, ambiguous duplicate fields, a failed lookup and an unknown record
+lead to deny; a missing or non-numeric policy value leads to a human, never to allow.
 Every decision is appended to `Gate.log` with its rule id (extracted fields only, never the body).
 How it can fail: it can only judge what a connector describes. A write to an endpoint that is
 mapped to an action but whose policy fields the manifest forgot to extract is not limited by
-those rules; the policy tests assert that every rule fires in at least one scenario.
+those rules; the policy tests assert that every rule fires in at least one scenario. The
+clarification check proves a question was asked and answered, not that the agent then followed
+the answer; and similar names are judged by shared words only, not by spelling.
 """
 import hashlib
 import json
@@ -39,6 +46,7 @@ import httpx
 
 from agent.connectors import Action, Connector, MatchSpec, origin_of, parse_expression
 from agent.policy import Policy, Rule, Unreadable, evaluate_condition, match_rule_applies, to_number
+from agent.similar import similar
 
 READ_METHODS = {"GET", "HEAD", "OPTIONS"}
 
@@ -53,12 +61,13 @@ class GateRequest:
 
 @dataclass
 class Decision:
-    effect: str  # "allow" | "deny" | "require_approval"
+    effect: str  # "allow" | "deny" | "require_approval" | "require_clarification"
     rule_id: str | None
     reason: str
     action: str | None = None
     fields: dict = field(default_factory=dict)
-    key: str | None = None  # approval key, when effect == "require_approval"
+    key: str | None = None  # approval or clarification key, when a human is required
+    why: str = ""  # set when the gate failed closed: what it could not check
 
     @property
     def allowed(self) -> bool:
@@ -68,7 +77,11 @@ class Decision:
     def message(self) -> str:
         """The text the tool returns to the agent when the request is blocked."""
         if self.effect == "require_approval":
-            return f"BLOCKED: approval required (rule {self.rule_id}). Use ask_human(kind=approval)."
+            extra = f" Why: {self.why}." if self.why else ""
+            return f"BLOCKED: approval required (rule {self.rule_id}). Use ask_human(kind=approval).{extra}"
+        if self.effect == "require_clarification":
+            return (f"BLOCKED: clarification required (rule {self.rule_id}). Use ask_human(kind=clarification). "
+                    f"{self.reason}")
         if self.effect == "deny":
             return f"BLOCKED: denied by {self.rule_id or 'the gate'}: {self.reason}"
         return "allowed"
@@ -109,6 +122,32 @@ class ApprovalStore:
 
     def consume(self, key: str) -> None:
         self._approved.discard(key)
+
+
+class ClarificationStore:
+    """Questions the gate wants a human to answer before a write may go ahead.
+
+    The gate registers one when a write points at a record that has look-alikes. Only a question the
+    human actually answered AFTER the block releases it (`answer_pending`), so an earlier or unrelated
+    question never counts. The answer is for the whole group of look-alikes and lasts for the run."""
+
+    def __init__(self):
+        self._pending: dict[str, Pending] = {}
+        self._answered: set[str] = set()
+
+    def answered(self, key: str) -> bool:
+        return key in self._answered
+
+    def request(self, key: str, rule_id: str, description: str) -> None:
+        if key not in self._answered:
+            self._pending.setdefault(key, Pending(key, rule_id, description))
+
+    def pending(self) -> list[Pending]:
+        return list(self._pending.values())
+
+    def answer_pending(self) -> None:
+        self._answered.update(self._pending)
+        self._pending.clear()
 
 
 # ---- reading a request ------------------------------------------------------
@@ -219,10 +258,11 @@ def default_fetch(url: str) -> tuple[int, str]:
 
 class Gate:
     def __init__(self, policy: Policy, connectors: list[Connector], fetch=default_fetch,
-                 approvals: ApprovalStore | None = None):
+                 approvals: ApprovalStore | None = None, clarifications: ClarificationStore | None = None):
         self.policy = policy
         self.connectors = list(connectors)
         self.approvals = approvals or ApprovalStore()
+        self.clarifications = clarifications or ClarificationStore()
         self.log: list[dict] = []
         self._fetch = fetch
         self._origins = {c.origin for c in self.connectors}
@@ -262,7 +302,7 @@ class Gate:
         if not matches:
             raise _Rejected("unmapped_write", f"{method} {path} is not a known action of any connected system")
 
-        needed: dict[str, tuple[Rule, Action, dict]] = {}  # approval key -> (rule, action, fields)
+        needed: dict[str, tuple[Rule, Action, dict, str]] = {}  # approval key -> (rule, action, fields, why)
         all_fields: dict = {}
         for connector, action, data in matches:
             rules = [r for r in self.policy.rules if r.action == action.name]
@@ -271,17 +311,27 @@ class Gate:
                 fields.update(self._lookup(connector, action, data))
             all_fields.update(fields)
             for rule in rules:
+                why = ""
                 try:
-                    holds = rule.when is None or evaluate_condition(rule.when, fields)
+                    required = rule.when is not None and rule.when.field not in action.optional_fields
+                    holds = rule.when is None or evaluate_condition(rule.when, fields, required=required)
                 except Unreadable as e:
-                    raise _Rejected("unreadable_request", f"cannot apply rule {rule.id}: {e}")
+                    # Fail closed: a value the rule needs is missing or unreadable, so we cannot show the rule
+                    # does not apply. Treat it as applying; the reason goes to the log and to the human.
+                    holds, why = True, f"cannot check rule {rule.id}: {e}"
                 if not holds:
                     continue
                 if rule.effect == "deny":
-                    return Decision("deny", rule.id, rule.message or f"action {action.name} is not allowed",
-                                    action.name, fields)
+                    return Decision("deny", rule.id, why or rule.message or f"action {action.name} is not allowed",
+                                    action.name, fields, why=why)
                 key = "|".join([action.name] + [f"{k}={_norm(fields.get(k))}" for k in action.approval_key])
-                needed.setdefault(key, (rule, action, fields))
+                needed.setdefault(key, (rule, action, fields, why))
+
+        for connector, action, data in matches:
+            if action.entity is not None:  # a human must say which record is meant when there are look-alikes
+                blocked = self._check_entity(connector, action, _extract(action.extract, data))
+                if blocked:
+                    return blocked
 
         action_names = ", ".join(a.name for _, a, _ in matches)
         if not needed:
@@ -347,20 +397,53 @@ class Gate:
             raise fail(f"lookup response has no {missing}")
         return found
 
+    def _candidates(self, connector: Connector, action: Action) -> dict[str, str]:
+        """id -> name of every record the system lists (a GET by the gate, never by the agent)."""
+        entity = action.entity
+        try:
+            status, text = self._fetch(connector.base_url + entity.candidates_url)
+            payload = json.loads(text)
+            if status != 200 or not isinstance(payload, list):
+                raise ValueError(f"HTTP {status}")
+            return {str(r[entity.id_field]).strip(): str(r[entity.name_field]) for r in payload}
+        except Exception as e:  # network, bad JSON, missing keys: all the same to the gate
+            raise _Rejected("lookup_failed", f"could not list the records to check for look-alikes ({type(e).__name__})")
+
+    def _check_entity(self, connector: Connector, action: Action, fields: dict) -> Decision | None:
+        """Block the write until a human has answered a question, if the record it points at has look-alikes."""
+        entity = action.entity
+        names = self._candidates(connector, action)
+        chosen = str(fields.get(entity.field, "")).strip()
+        if chosen not in names:  # cannot tell which record is meant: fail closed
+            raise _Rejected("entity_unknown", f"{entity.field}={chosen or '(missing)'} is not one of the listed records")
+        twins = {i: n for i, n in names.items()
+                 if i != chosen and similar(names[chosen], n, entity.ignore_words, entity.min_shared)}
+        if not twins:
+            return None
+        key = f"{action.name}|{entity.field} in {{{','.join(sorted({chosen, *twins}))}}}"
+        if self.clarifications.answered(key):
+            return None
+        others = "; ".join(f"'{n}' ({entity.field}={i})" for i, n in twins.items())
+        description = f"'{names[chosen]}' ({entity.field}={chosen}) looks like {others}"
+        self.clarifications.request(key, "similar_records", f"{action.name}: {description}")
+        return Decision("require_clarification", "similar_records",
+                        f"{description}. Ask the requester which one is meant before writing.",
+                        action.name, fields, key)
+
     def _approvals_step(self, needed, action_names: str, all_fields: dict) -> Decision:
-        for key, (rule, action, fields) in needed.items():
+        for key, (rule, action, fields, why) in needed.items():
             if self.approvals.state(key) == "denied":
                 return Decision("deny", rule.id, "a human denied this action; do not retry it",
                                 action.name, fields, key)
-        undecided = [(key, rule, action, fields) for key, (rule, action, fields) in needed.items()
+        undecided = [(key, rule, action, fields, why) for key, (rule, action, fields, why) in needed.items()
                      if self.approvals.state(key) == "unknown"]
-        for key, rule, action, fields in undecided:
-            summary = ", ".join(f"{k}={fields.get(k)}" for k in action.approval_key)
-            self.approvals.request(key, rule.id, f"{action.name}: {summary}")
+        for key, rule, action, fields, why in undecided:
+            summary = ", ".join(f"{k}={fields.get(k, '(not in the request)')}" for k in action.approval_key)
+            self.approvals.request(key, rule.id, f"{action.name}: {summary}" + (f" [{why}]" if why else ""))
         if undecided:
-            key, rule, action, fields = undecided[0]
-            return Decision("require_approval", rule.id, f"rule {rule.id} needs a human decision",
-                            action.name, fields, key)
+            key, rule, action, fields, why = undecided[0]
+            return Decision("require_approval", rule.id, why or f"rule {rule.id} needs a human decision",
+                            action.name, fields, key, why)
         for key in needed:
             self.approvals.consume(key)
         first_rule = next(iter(needed.values()))[0]

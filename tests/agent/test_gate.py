@@ -2,7 +2,7 @@
 import pytest
 
 from agent.gate import GateRequest
-from tests.agent.helpers import BASE, bills_fetch, form, get, js, make_gate, no_fetch
+from tests.agent.helpers import BASE, bills_fetch, form, get, js, make_gate, no_fetch, world_fetch
 
 
 def verdict(gate, request):
@@ -148,21 +148,37 @@ def test_the_json_api_under_the_limit_is_allowed():
     assert d.allowed and d.action == "create_bill"
 
 
-@pytest.mark.parametrize("amount", ["nan", "NaN", "inf", "abc", "", "5 5"])
-def test_an_unreadable_amount_is_denied_not_waved_through(amount):
-    assert verdict(make_gate(), form("/erp/bills/new", amount=amount, **BILL)) == ("deny", "unreadable_request")
+@pytest.mark.parametrize("amount", ["nan", "NaN", "inf", "abc", "", "5 5", "80,000"])
+def test_an_unreadable_amount_needs_a_human_and_says_why(amount):
+    """Fail closed: a value the gate cannot compare must never be waved through, so a human decides."""
+    gate = make_gate()
+    d = gate.evaluate(form("/erp/bills/new", amount=amount, **BILL))
+    assert (d.effect, d.rule_id) == ("require_approval", "bill_over_limit")
+    assert "cannot check rule bill_over_limit" in d.why and d.why in gate.log[-1]["reason"]  # the reason is logged
+    assert f"Why: {d.why}" in d.message
 
 
-def test_a_request_without_the_field_does_not_trigger_the_rule():
-    # the receiving system will reject it itself; the gate has nothing to limit
-    assert make_gate().evaluate(form("/erp/bills/new", **BILL)).allowed
+@pytest.mark.parametrize("request_", [
+    form("/erp/bills/new", **BILL),                                                          # no amount at all
+    form("/erp/bills/new", amt="80000", **BILL),                                             # the field has another name
+    js("POST", "/erp/api/bills", {"vendor_id": 5, "invoice_no": "X", "amount": None}),       # null
+    js("POST", "/erp/api/bills", {"vendor_id": 5, "invoice_no": "X", "Amount": 80000}),      # wrong case
+])
+def test_a_missing_amount_fails_closed_instead_of_skipping_the_rule(request_):
+    """It used to be allowed ('the receiving system will reject it itself'); now the gate does not rely on that."""
+    gate = make_gate()
+    d = gate.evaluate(request_)
+    assert (d.effect, d.rule_id) == ("require_approval", "bill_over_limit")
+    assert "'amount' is missing from the request" in d.why
+    [pending] = gate.approvals.pending()
+    assert "amount=(not in the request)" in pending.description and "'amount' is missing" in pending.description
 
 
 def test_the_same_field_with_two_different_values_is_ambiguous_and_denied():
     request = GateRequest("POST", BASE + "/erp/bills/new", "amount=100&amount=80000&vendor_id=5",
                           "application/x-www-form-urlencoded")
     assert verdict(make_gate(), request) == ("deny", "unreadable_request")
-    same = GateRequest("POST", BASE + "/erp/bills/new", "amount=80000&amount=80000", "application/x-www-form-urlencoded")
+    same = GateRequest("POST", BASE + "/erp/bills/new", "amount=80000&amount=80000&vendor_id=5", "application/x-www-form-urlencoded")
     assert verdict(make_gate(), same) == ("require_approval", "bill_over_limit")
 
 
@@ -239,9 +255,9 @@ def test_a_failed_lookup_denies_instead_of_guessing(fetch):
     assert (d.effect, d.rule_id) == ("deny", "lookup_failed")
 
 
-def test_a_lookup_returning_an_unreadable_amount_is_denied():
+def test_a_lookup_returning_an_unreadable_amount_needs_a_human():
     gate = make_gate(fetch=bills_fetch({"2": "abc"}))
-    assert verdict(gate, GateRequest("POST", BASE + "/erp/bills/2/mark_paid")) == ("deny", "unreadable_request")
+    assert verdict(gate, GateRequest("POST", BASE + "/erp/bills/2/mark_paid")) == ("require_approval", "paid_over_limit")
 
 
 def test_a_crafted_id_cannot_redirect_the_lookup():
@@ -268,8 +284,8 @@ def test_vendor_rules_via_json_and_bad_values():
     gate = make_gate()
     assert verdict(gate, js("POST", "/erp/api/vendors", {"name": "G", "payment_terms_days": 90})) == ("require_approval", "long_terms")
     assert verdict(gate, js("POST", "/erp/api/vendors", {"name": "G", "payment_terms_days": 30}))[0] == "allow"
-    assert verdict(gate, form("/erp/vendors/new", name="G", payment_terms_days="soon")) == ("deny", "unreadable_request")
-    assert verdict(gate, form("/erp/vendors/new", name="G"))[0] == "allow"  # no terms given: nothing to limit
+    assert verdict(gate, form("/erp/vendors/new", name="G", payment_terms_days="soon")) == ("require_approval", "long_terms")
+    assert verdict(gate, form("/erp/vendors/new", name="G")) == ("require_approval", "long_terms")  # no terms: fail closed
 
 
 # ---- approvals -----------------------------------------------------------
@@ -365,7 +381,7 @@ def test_every_decision_is_logged_with_its_rule_id_and_no_request_bodies():
 
 
 def test_every_rule_in_the_company_policy_fires_in_some_scenario():
-    gate = make_gate(fetch=bills_fetch({"3": 80000}))
+    gate = make_gate(fetch=world_fetch({"3": 80000}))
     for request in (
         form("/erp/bills/new", **BIG),
         form("/erp/bills/1/edit", amount="80000", due_date="07/09/2026"),

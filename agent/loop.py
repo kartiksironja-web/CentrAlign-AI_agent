@@ -9,6 +9,7 @@ The LLM proposes, code disposes. The model decides what to do next. This loop (c
   * one tool call per step, with a reason; extra calls are ignored, missing reasons rejected;
   * that nothing but a question to the requester is allowed while the contract has open
     questions, and nothing but asking a human / finishing once a retry budget is used up;
+  * that a question nobody can answer ends the run as needs_human (no default answer is ever assumed);
   * whether `finish` is accepted: "done" needs declared assertions that pass validation AND an
     audit that passes (feedback ladder, 2 rounds, then the run is escalated to a human);
   * the outcome and the final report (see report.py), written from observed facts.
@@ -283,6 +284,9 @@ class Agent:
             state.human_unavailable = True
             state.needs_clarification = False  # nobody can answer, so "ask first" would only make finish impossible
             state.forced_reason = "No human can answer. The only thing left is finish with status needs_human (or blocked)."
+            # Code ends the run; the model is not trusted to stop. Nothing is assumed in the human's place.
+            state.outcome = "needs_human"
+            state.detail = "a human was needed but no answer was available" + (f" ({result.detail})" if result.detail else "")
         if call.name == "ask_human" and kind == "tool" and not result.error and not result.human_unavailable \
                 and args.get("kind") == "clarification":
             state.needs_clarification = False

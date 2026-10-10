@@ -7,11 +7,12 @@ Why this design: rules are data, not code, so permissions can change without
 touching the runtime. Only two effects exist (deny, require_approval): "allow"
 would be a no-op because everything not denied is already allowed.
 Conditions FAIL CLOSED. If the value a rule needs is present but cannot be read
-as a number ("nan", "abc"), `evaluate_condition` raises Unreadable and the gate
-denies the request. Otherwise a malformed amount could slip past a
-"greater than" rule, because nan > 50000 is False.
-How it can fail: a rule can only test fields the connector extracts; if a field
-is simply absent from the request the rule does not apply.
+as a number ("nan", "abc", "80,000"), or is missing when the gate says it is required,
+`evaluate_condition` raises Unreadable and the gate treats the rule as holding: the
+request needs a human. Otherwise a malformed amount could slip past a "greater than"
+rule, because nan > 50000 is False.
+How it can fail: a rule can only test fields the connector extracts; a field the connector
+lists as optional (one a request may legitimately leave out) is skipped when absent.
 """
 import fnmatch
 import math
@@ -124,10 +125,13 @@ def to_number(value) -> float:
     return number
 
 
-def evaluate_condition(cond: Condition, fields: dict) -> bool:
-    """True if the rule's condition holds. A missing field means the rule does not apply
-    (False); a present-but-unreadable field raises Unreadable."""
+def evaluate_condition(cond: Condition, fields: dict, required: bool = False) -> bool:
+    """True if the rule's condition holds. A present-but-unreadable field raises Unreadable.
+    A missing field means the rule does not apply (False), unless `required`: then the field
+    should have been there, so it also raises Unreadable (the gate treats that as "ask a human")."""
     if fields.get(cond.field) is None:
+        if required:
+            raise Unreadable(f"'{cond.field}' is missing from the request")
         return False
     actual = fields[cond.field]
     if isinstance(cond.value, str):

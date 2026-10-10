@@ -3,7 +3,8 @@
 Purpose: one YAML file per system, loaded into typed objects. The AGENT reads the
 description, capabilities and record names (`Connector.describe()`); the GATE reads
 the base URL (which hosts exist) and `actions` (which raw requests are which named
-action, how to read their fields, which fields identify "the same action" for approvals).
+action, how to read their fields, which fields identify "the same action" for approvals, which
+fields a request may leave out, and which field names a record that could be confused with another).
 Why this design: all company knowledge stays in data files. Field expressions such as
 "form.amount|json.amount" mean "first source that has it"; sources are form, json, path
 (from {name} in the path template) and query. A `lookup` lets the gate fetch a field the
@@ -18,7 +19,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 _EXPR_ALT = re.compile(r"(form|json|path|query)\.([A-Za-z_]\w*)")
 
@@ -94,12 +95,35 @@ class Lookup(_Strict):
         return v
 
 
+class Entity(_Strict):
+    """Which extracted field names a record, and where to list the records it could be confused with.
+
+    Before the gate lets the write through it GETs `candidates_url` (a JSON list of records), finds the
+    record the request points at (`id_field` equal to the extracted field) and looks for OTHER records whose
+    `name_field` is similar (see agent/similar.py). If there are any, a human must be asked first."""
+    field: str  # a key of the action's `extract`
+    candidates_url: str  # relative to base_url
+    id_field: str
+    name_field: str
+    ignore_words: tuple[str, ...] = ()  # words that say nothing about identity, e.g. legal suffixes (company knowledge)
+    min_shared: float = 0.5  # share of the shorter name's words the other name must contain
+
+    @field_validator("min_shared")
+    @classmethod
+    def _fraction(cls, v):
+        if not 0 < v <= 1:
+            raise ValueError("min_shared must be above 0 and at most 1")
+        return v
+
+
 class Action(_Strict):
     name: str
     match: tuple[MatchSpec, ...]
     extract: dict[str, str] = Field(default_factory=dict)
     approval_key: tuple[str, ...] = ()
     lookup: Lookup | None = None
+    optional_fields: tuple[str, ...] = ()  # fields a request may legitimately leave out; any other missing field fails closed
+    entity: Entity | None = None
 
     @field_validator("extract")
     @classmethod
@@ -107,6 +131,16 @@ class Action(_Strict):
         for expr in v.values():
             parse_expression(expr)
         return v
+
+    @model_validator(mode="after")
+    def _names_exist(self):
+        known = set(self.extract) | (set(self.lookup.extract) if self.lookup else set())
+        unknown = sorted(set(self.optional_fields) - known)
+        if unknown:
+            raise ValueError(f"optional_fields {unknown} are not extracted by action {self.name!r}")
+        if self.entity is not None and self.entity.field not in self.extract:
+            raise ValueError(f"entity field {self.entity.field!r} is not extracted by action {self.name!r}")
+        return self
 
 
 class Record(_Strict):

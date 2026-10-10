@@ -57,8 +57,9 @@ def gate_html(entries: list[dict]) -> str:
         return ""
     items = []
     for g in shown:
-        kind = {"allow": "good", "deny": "bad", "require_approval": "warn"}[g["effect"]]
-        label = {"allow": "allowed", "deny": "denied", "require_approval": "approval required"}[g["effect"]] + (
+        kind = {"allow": "good", "deny": "bad", "require_approval": "warn", "require_clarification": "warn"}[g["effect"]]
+        label = {"allow": "allowed", "deny": "denied", "require_approval": "approval required",
+                 "require_clarification": "clarification required"}[g["effect"]] + (
             f" by {g['rule_id']}" if g.get("rule_id") else "")
         action = f" ({g['action']})" if g.get("action") else ""
         note = f" [{g['note']}]" if g.get("note") else ""
@@ -79,13 +80,14 @@ def call_html(args: dict) -> str:
 def step_html(s: dict) -> str:
     worst = "allow"
     for g in s["gate"]:
-        if g["effect"] == "deny" or (g["effect"] == "require_approval" and worst == "allow"):
+        if g["effect"] == "deny" or (g["effect"] in ("require_approval", "require_clarification") and worst == "allow"):
             worst = g["effect"]
     marks = [badge(s["kind"], "mute")]
     if s["error"]:
         marks.append(badge("error", "bad"))
     if worst != "allow":
-        marks.append(badge("blocked" if worst == "deny" else "approval needed", "bad" if worst == "deny" else "warn"))
+        marks.append(badge({"deny": "blocked", "require_clarification": "clarification needed"}.get(worst, "approval needed"),
+                           "bad" if worst == "deny" else "warn"))
     cost = f" · ${s['cost_usd']:.4f}" if s.get("cost_usd") is not None else ""
     detectors = "".join(f'<p class="det">{e(d)}</p>' for d in s["detectors"])
     return (f'<section class="card kind-{e(s["kind"])}"><b>Step {e(s["n"])}</b> <code>{e(s["tool"])}</code>{"".join(marks)}'

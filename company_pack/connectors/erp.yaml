@@ -58,6 +58,16 @@ actions:
       invoice_no: "form.invoice_no|json.invoice_no"
       amount: "form.amount|json.amount"
     approval_key: [vendor_id, invoice_no, amount]
+    # Which record does this write point at, and could it be confused with another? Before the write the
+    # gate lists the vendors itself (GET) and, if another vendor has a similar name, blocks the write until
+    # the requester has answered a question (agent/similar.py: shared words, ignoring the words below).
+    entity:
+      field: vendor_id
+      candidates_url: /erp/api/vendors
+      id_field: id
+      name_field: name
+      ignore_words: [pvt, ltd, llc, inc, co, corp, limited, private, company]
+      min_shared: 0.5
 
   - name: update_bill
     match:
@@ -68,6 +78,9 @@ actions:
       amount: "form.amount|json.amount"
       due_date: "form.due_date|json.due_date"
     approval_key: [bill_id, amount, due_date]
+    # An API update may change only one of the two. Any OTHER policy field missing from a request fails
+    # closed (a human must approve), so list here only the fields a request may really leave out.
+    optional_fields: [amount, due_date]
 
   - name: mark_paid
     match:
