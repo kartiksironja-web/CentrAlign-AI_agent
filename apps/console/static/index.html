@@ -325,7 +325,7 @@ tr.new td { background: #0d3a30; color: var(--good); font-weight: 700; animation
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const icon = (n, cls = "") => `<svg class="i ${cls}"><use href="#i-${n}"/></svg>`;
-let cfg = null, handle = null, timer = null, answeredId = null, lastStatus = null, shownSteps = 0, selectedPreset = null;
+let cfg = null, handle = null, timer = null, answeredId = null, shownId = null, lastStatus = null, shownSteps = 0, selectedPreset = null;
 
 function setHtml(el, html) { if (el._h !== html) { el.innerHTML = html; el._h = html; } }
 function toast(msg, cls = "") { const t = document.createElement("div"); t.className = "toast " + cls; t.innerHTML = msg; $("toasts").appendChild(t); setTimeout(() => t.remove(), 5200); }
@@ -368,7 +368,7 @@ $("go").onclick = async () => {
     const faults = [...document.querySelectorAll(".fault")].filter((c) => c.checked).map((c) => c.value);
     const r = await api("/api/runs", { method: "POST", body: { task: $("task").value, faults, audit_mode: $("audit-enforce").checked ? "enforce" : "advisory",
       headed: $("headed").checked, slow_ms: +$("slow").value || 0, reset: $("reset").checked } });
-    handle = r.handle; answeredId = null; lastStatus = null; clearView(); poll();
+    handle = r.handle; answeredId = null; shownId = null; lastStatus = null; clearView(); poll();
   } catch (e) { $("go-hint").textContent = e.message; $("go").disabled = false; toast(esc(e.message), "bad"); }
 };
 $("reset-now").onclick = async () => { try { await api("/api/world/reset", { method: "POST", body: { faults: [] } }); refreshWorld(); toast("Company data reset", "good"); } catch (e) { toast(esc(e.message), "bad"); } };
@@ -444,7 +444,9 @@ function render(s) {
   if (s.result) setHtml($("report"), `<pre>${esc(s.result.report)}</pre>`);
   if (run.run_id) { $("timeline").href = "/api/runs/" + s.handle + "/timeline"; $("timeline").classList.remove("hidden"); }
   // human + toasts
-  if (s.pending && s.pending.id !== answeredId) showQuestion(s.pending); else if (!s.pending) $("modal").hidden = true;
+  // draw the dialog once per question: drawing it again on every poll cleared what the person was typing
+  if (s.pending && s.pending.id !== answeredId) { if (s.pending.id !== shownId) { shownId = s.pending.id; showQuestion(s.pending); } }
+  else if (!s.pending) { $("modal").hidden = true; shownId = null; }
   if (lastStatus && lastStatus !== s.status && !working) { const o = out && OUTCOMES[out]; toast(s.status === "error" ? "Run failed" : `Run finished: <b>${esc(o ? o[2] : out)}</b>`, s.status === "error" ? "bad" : o ? o[0] : ""); }
   lastStatus = s.status;
 }
@@ -537,7 +539,7 @@ function showQuestion(p) {
   $("m-question").textContent = p.question; $("m-context").classList.toggle("hidden", !p.context.length);
   $("m-context").innerHTML = (approval ? "<b>What the system recorded about the blocked request:</b>" : "") + p.context.map((c) => `<div>${esc(c)}</div>`).join("");
   $("m-input").classList.toggle("hidden", approval); $("m-text").value = "";
-  const send = async (reply) => { answeredId = p.id; $("modal").hidden = true; try { await api("/api/runs/" + handle + "/answer", { method: "POST", body: { question_id: p.id, reply } }); } catch (e) { answeredId = null; } };
+  const send = async (reply) => { answeredId = p.id; $("modal").hidden = true; try { await api("/api/runs/" + handle + "/answer", { method: "POST", body: { question_id: p.id, reply } }); } catch (e) { answeredId = null; shownId = null; } };
   $("m-btns").innerHTML = "";
   const add = (label, cls, fn) => { const b = document.createElement("button"); b.textContent = label; b.className = cls; b.onclick = fn; $("m-btns").appendChild(b); };
   if (approval) { add("Approve", "approve", () => send("approve")); add("Deny", "deny", () => send("deny")); }
