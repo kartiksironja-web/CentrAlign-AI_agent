@@ -14,7 +14,9 @@ Written from what the real runs showed. Numbers are in `evals/RESULTS.md`, `eval
    stronger fix would be code (a rule such as "this value must be checked against that table"), which the frozen auditor does not have.
 2. **The model does not reliably ask when it should.** In S2 (two vendors with similar names) the agent chose the right vendor in 3 of 3 runs
    but never asked the human first (0 of 3 meet the expectation "ask, then write"). Prompt and handbook wording did not change this. "Ask
-   when unsure" is enforced by code only after the model itself reports an ambiguity.
+   when unsure" was enforced by code only after the model itself reported an ambiguity. Since the second freeze (decisions #103 to #105) the
+   gate also blocks a write whose record has a look-alike until a question is answered: 2 of 3 S2 runs then met the expectation (see the README).
+   Still open: the check only sees names that share words, and the model still over-asks about unrelated things (one S2 run).
 3. **The agent writes its own assertions, and that is the hardest part for a small model.** The validator forces coverage of what the
    handbook requires and forces independent sources, but a 14B model needed many attempts (and a handbook note naming the sources) before a
    run could finish. A stronger model, or a simpler way to name a value in a document (for example a `label:` option), would help; neither is built.

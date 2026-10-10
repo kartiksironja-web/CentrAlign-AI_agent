@@ -19,8 +19,9 @@ Model used for every result in this repo: `mistral/ministral-14b-latest` through
 | 8 | Run viewer, recording flags, demo script | Done (`scripts/render_run.py`, `--headed --slow`, `docs/DEMO_SCRIPT.md`) |
 | 9 | Document audit | Done: `docs/AUDIT_REPORT.md` |
 | extra | Local web console (`apps/console/`) for running and filming the agent | Done after the freeze, outside the evaluated code (decisions #98-#99); 15 tests, driven end to end through a browser with a real run |
+| 10 | Close the "agent does not ask" loophole in code (decisions #103-#108) | Code and tests done, committed `f419645`, new freeze tag `agent-frozen-v2`; S1, S2, S3, S5-approve, S5-deny re-run on the new code (see `evals/RESULTS.md`; the old numbers are in `evals/RESULTS_before_fix.md`) |
 
-## What exists (details: `docs/DECISIONS_LOG.md`, 102 entries)
+## What exists (details: `docs/DECISIONS_LOG.md`, 108 entries)
 
 - **Mock company** (`apps/company/`): vendor portal (amount and due date only inside invoice PDFs), ERP with web forms and a JSON API, token-protected admin, faults `DATE_TRAP`, `SAVE_BROKEN`, `BUTTON_RENAME`, `DUPLICATE_VENDOR` (off by default), deterministic seed. `SESSION_EXPIRY` (P2) is not built.
 - **Auditor** (`auditor/`, plain Python, no model, no company words): own read-only SQLite connection, schema-checked SQL, before/after row-hash snapshots, six assertion kinds, a validator that forces coverage of what the handbook requires and independent sources for those values, declaration-time checks (expected values must resolve now, undeclared changes are refused with the exact fix), `no_other_changes`, a feedback ladder.
@@ -31,7 +32,7 @@ Model used for every result in this repo: `mistral/ministral-14b-latest` through
 - **Evals** (`evals/`): scenarios S1-S5, S6, S7, S10; fresh data copy and app process per run; an independent ground-truth check (not the auditor); metrics including "auditor false pass"; `RESULTS.md` generated from stored records.
 - **Proof of generalization** (`scripts/prove_generalization.py`): hashes of `agent/` and `auditor/` at the freeze.
 - **Web console** (`apps/console/`): `python -m apps.console.main`, then http://127.0.0.1:8500. Runs the real agent in a thread, shows phases, plan, every step with its reason, the gate, the auditor's checks beside the agent's own claim, and the company's tables live; a person answers approvals and questions in the browser; also shows the generated results and the freeze proof.
-- **Tests**: 761 (about 2 to 4 minutes); the setup commands and the full suite were also run on a clean clone (Windows 11, Python 3.11.9).
+- **Tests**: 812 (about 3 to 4 minutes) after phase 10. The 761-test run and the clean-clone install were done on the earlier commit `8433174`; the clean clone was not repeated after phase 10.
 
 ## How the real model changed the code
 
@@ -56,3 +57,17 @@ See `docs/LIMITATIONS_AND_FUTURE.md` for the full list with reasoning. In short:
 ## Provider research (2026-10-09, kept for the record)
 
 What a run needs: about 25 model calls and 150,000-250,000 tokens. Groq (Developer plan: 8,000 tokens per minute): not viable. Cerebras (1 million tokens per day but needs a verified payment method). OpenRouter free models (50 per day without credits): not viable. GitHub Models: retired. Cohere trial key (1,000 calls per month): about 40 runs. NVIDIA NIM: reported free, not tried. Mistral free plan: used (limits above). Gemini free key: 20 calls per day per model, used for the first partial run only (`runs/` evidence not kept).
+
+## Phase 10: why the freeze tag moved, and what changed
+
+**The finding.** Reading the stored runs showed that the agent never asked a human when two records looked alike: in all 6 stored runs with the DUPLICATE_VENDOR fault it saw both look-alike vendors on the vendor list, wrote, and asked nothing; across the 77 stored `run.json` files no clarification question was ever answered. The only code that forced a question read the request text once, before any page was seen, and the prompt had told the model to leave that list empty (decisions #85, #52). The gate also let a request through when a policy field such as the amount was missing, and it only stood safe because the mock ERP rejected those requests itself. Nothing in the code answered for the human: scripted, console and web humans have no default answer (checked, with real runs of the approve and deny paths).
+
+**What changed (decisions #103-#108).**
+- `agent/gate.py`, `agent/policy.py`, `agent/connectors.py`, new `agent/similar.py`: a missing or unreadable policy field means a human must approve (reason logged); a write that points at a record with a look-alike is blocked until a human has answered a question asked after the block. Which field names the record, where the candidates are listed and which words to ignore are data in `company_pack/connectors/erp.yaml`.
+- `agent/toolbox.py`, `agent/loop.py`: the human sees what the gate found; an empty reply is not an answer; if no human can answer, code ends the run as `needs_human` and records why.
+- `apps/console/static/index.html`, `scripts/render_run.py`: show the new gate decision.
+- The suite grew from 761 to 812 tests, and the old tests that encoded the previous behaviour (a missing amount allowed, an unreadable amount denied, the agent expected to stop by itself) were rewritten on purpose, not loosened. Full suite: 812 passed.
+
+**Why the tag moved.** `agent/` and `auditor/` changed, so the old claim "this code is byte-identical to the evaluated freeze" no longer holds for the new code. Editing the old tag would have hidden that. Instead the new code is tagged `agent-frozen-v2` with its own hash manifest (`evals/frozen_manifest.json`); the first manifest is kept as `evals/frozen_manifest_v1.json`, and the first results as `evals/RESULTS_before_fix.md`, generated from the stored batch. Everything measured on the first freeze (S3-advisory, S4, S6, S7, S10 and the S1 to S5 sweep) belongs to the first freeze; only S1, S2, S3, S5-approve and S5-deny were re-run on the second. `scripts/prove_generalization.py` still prints its `git diff` against the tag `agent-frozen` (the first freeze).
+
+**Not fixed, on purpose.** The agent is still allowed to choose the wrong record when the names do not look alike (S5-approve's older invoice, S6's original document): that is the auditor's blind spot, listed in the README. A test that failed once under full-suite load (`test_the_agents_log_writes_and_the_consoles_reads_never_overlap`, passed 5 of 5 alone and in the 812-test run) was not investigated.
